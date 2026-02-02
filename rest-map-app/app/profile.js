@@ -7,11 +7,47 @@ import {
   ScrollView,
   Alert,
   ActivityIndicator,
+  Platform,
+  StatusBar,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../contexts/AuthContext';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
+import { COLORS, SHADOWS, SPACING, RADIUS } from '../constants/theme';
+
+// Menu Item Component
+function MenuItem({ icon, title, subtitle, onPress, danger, showArrow = true }) {
+  return (
+    <TouchableOpacity
+      style={styles.menuItem}
+      onPress={onPress}
+      activeOpacity={0.7}
+    >
+      <View style={styles.menuIconContainer}>
+        <Text style={styles.menuIcon}>{icon}</Text>
+      </View>
+      <View style={styles.menuContent}>
+        <Text style={[styles.menuTitle, danger && styles.menuTitleDanger]}>
+          {title}
+        </Text>
+        {subtitle && <Text style={styles.menuSubtitle}>{subtitle}</Text>}
+      </View>
+      {showArrow && <Text style={styles.menuArrow}>›</Text>}
+    </TouchableOpacity>
+  );
+}
+
+// Stat Card Component
+function StatCard({ value, label, icon }) {
+  return (
+    <View style={styles.statCard}>
+      <Text style={styles.statIcon}>{icon}</Text>
+      <Text style={styles.statValue}>{value}</Text>
+      <Text style={styles.statLabel}>{label}</Text>
+    </View>
+  );
+}
 
 export default function ProfileScreen() {
   const router = useRouter();
@@ -30,7 +66,6 @@ export default function ProfileScreen() {
     }
 
     try {
-      // Count user's submitted spots
       let spotCount = 0;
       let reviewCount = 0;
 
@@ -82,321 +117,408 @@ export default function ProfileScreen() {
     );
   };
 
-  const MenuItem = ({ icon, title, subtitle, onPress, danger }) => (
-    <TouchableOpacity style={styles.menuItem} onPress={onPress}>
-      <Text style={styles.menuIcon}>{icon}</Text>
-      <View style={styles.menuContent}>
-        <Text style={[styles.menuTitle, danger && styles.menuTitleDanger]}>
-          {title}
-        </Text>
-        {subtitle && <Text style={styles.menuSubtitle}>{subtitle}</Text>}
-      </View>
-      <Text style={styles.menuArrow}>›</Text>
-    </TouchableOpacity>
-  );
-
   return (
-    <ScrollView style={styles.container}>
-      {/* Profile Header */}
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" />
+
+      {/* Header */}
       <View style={styles.header}>
-        <View style={styles.avatar}>
-          <Text style={styles.avatarText}>
-            {isMember ? (user?.email?.charAt(0).toUpperCase() || 'M') : 'G'}
-          </Text>
+        {/* Back Button */}
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => router.back()}
+        >
+          <Text style={styles.backIcon}>←</Text>
+        </TouchableOpacity>
+
+        {/* Avatar */}
+        <View style={styles.avatarContainer}>
+          <View style={styles.avatar}>
+            <Text style={styles.avatarText}>
+              {isMember ? (user?.email?.charAt(0).toUpperCase() || 'M') : 'G'}
+            </Text>
+          </View>
+          <View style={styles.statusBadge}>
+            <Text style={styles.statusText}>
+              {isMember ? 'Member' : 'Guest'}
+            </Text>
+          </View>
         </View>
+
         <Text style={styles.userName}>
           {isMember ? user?.email : 'ゲストユーザー'}
-        </Text>
-        <Text style={styles.userStatus}>
-          {isMember ? 'メンバー' : 'ゲストとしてブラウズ中'}
         </Text>
 
         {/* Stats for Members */}
         {isMember && (
-          <View style={styles.statsContainer}>
-            <View style={styles.statItem}>
-              <Text style={styles.statNumber}>
-                {loading ? '-' : stats.spots}
-              </Text>
-              <Text style={styles.statLabel}>登録スポット</Text>
-            </View>
-            <View style={styles.statDivider} />
-            <View style={styles.statItem}>
-              <Text style={styles.statNumber}>
-                {loading ? '-' : stats.reviews}
-              </Text>
-              <Text style={styles.statLabel}>レビュー</Text>
-            </View>
-          </View>
-        )}
-      </View>
-
-      {/* Guest Promotion */}
-      {isGuest && (
-        <TouchableOpacity
-          style={styles.promoCard}
-          onPress={() => router.push('/login')}
-        >
-          <Text style={styles.promoIcon}>🎉</Text>
-          <View style={styles.promoContent}>
-            <Text style={styles.promoTitle}>メンバーになりませんか？</Text>
-            <Text style={styles.promoText}>
-              ログインすると、ユーザー投稿のスポットを閲覧したり、
-              自分でスポットを追加したり、レビューを書けるようになります！
-            </Text>
-          </View>
-        </TouchableOpacity>
-      )}
-
-      {/* Menu Section */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>設定</Text>
-
-        {isMember && (
-          <>
-            <MenuItem
+          <View style={styles.statsRow}>
+            <StatCard
+              value={loading ? '-' : stats.spots}
+              label="スポット"
               icon="📍"
-              title="投稿したスポット"
-              subtitle={`${stats.spots} 件のスポット`}
+            />
+            <StatCard
+              value={loading ? '-' : stats.reviews}
+              label="レビュー"
+              icon="⭐"
+            />
+          </View>
+        )}
+      </View>
+
+      {/* Content */}
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.contentCard}>
+          {/* Guest Promotion */}
+          {isGuest && (
+            <TouchableOpacity
+              style={styles.promoCard}
+              onPress={() => router.push('/login')}
+              activeOpacity={0.8}
+            >
+              <View style={styles.promoIconContainer}>
+                <Text style={styles.promoIcon}>🎉</Text>
+              </View>
+              <View style={styles.promoContent}>
+                <Text style={styles.promoTitle}>メンバーになりませんか？</Text>
+                <Text style={styles.promoText}>
+                  ユーザー投稿のスポットを閲覧、{'\n'}スポット追加やレビュー投稿ができます
+                </Text>
+              </View>
+              <Text style={styles.promoArrow}>→</Text>
+            </TouchableOpacity>
+          )}
+
+          {/* Menu Sections */}
+          {isMember && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>アクティビティ</Text>
+              <MenuItem
+                icon="📍"
+                title="投稿したスポット"
+                subtitle={`${stats.spots} 件`}
+                onPress={() => Alert.alert('準備中', 'この機能は準備中です')}
+              />
+              <MenuItem
+                icon="⭐"
+                title="レビュー履歴"
+                subtitle={`${stats.reviews} 件`}
+                onPress={() => Alert.alert('準備中', 'この機能は準備中です')}
+              />
+            </View>
+          )}
+
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>設定</Text>
+            <MenuItem
+              icon="🔔"
+              title="通知設定"
+              subtitle="プッシュ通知のON/OFF"
               onPress={() => Alert.alert('準備中', 'この機能は準備中です')}
             />
             <MenuItem
-              icon="⭐"
-              title="レビュー履歴"
-              subtitle={`${stats.reviews} 件のレビュー`}
+              icon="🌙"
+              title="表示設定"
+              subtitle="ダークモード、言語など"
               onPress={() => Alert.alert('準備中', 'この機能は準備中です')}
             />
-          </>
-        )}
+          </View>
 
-        <MenuItem
-          icon="🔔"
-          title="通知設定"
-          subtitle="プッシュ通知のON/OFF"
-          onPress={() => Alert.alert('準備中', 'この機能は準備中です')}
-        />
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>サポート</Text>
+            <MenuItem
+              icon="❓"
+              title="ヘルプ"
+              subtitle="使い方ガイド"
+              onPress={() => Alert.alert('準備中', 'この機能は準備中です')}
+            />
+            <MenuItem
+              icon="📧"
+              title="お問い合わせ"
+              subtitle="フィードバックを送る"
+              onPress={() => Alert.alert('準備中', 'この機能は準備中です')}
+            />
+            <MenuItem
+              icon="📋"
+              title="利用規約"
+              onPress={() => Alert.alert('準備中', 'この機能は準備中です')}
+            />
+            <MenuItem
+              icon="🔒"
+              title="プライバシーポリシー"
+              onPress={() => Alert.alert('準備中', 'この機能は準備中です')}
+            />
+          </View>
 
-        <MenuItem
-          icon="🌙"
-          title="表示設定"
-          subtitle="ダークモード、言語など"
-          onPress={() => Alert.alert('準備中', 'この機能は準備中です')}
-        />
-      </View>
+          {/* Auth Actions */}
+          <View style={styles.section}>
+            {isMember ? (
+              <MenuItem
+                icon="🚪"
+                title="ログアウト"
+                danger
+                onPress={handleSignOut}
+                showArrow={false}
+              />
+            ) : (
+              <MenuItem
+                icon="🔑"
+                title="ログイン / 新規登録"
+                onPress={() => router.push('/login')}
+              />
+            )}
+          </View>
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>サポート</Text>
-
-        <MenuItem
-          icon="❓"
-          title="ヘルプ"
-          subtitle="使い方ガイド"
-          onPress={() => Alert.alert('準備中', 'この機能は準備中です')}
-        />
-
-        <MenuItem
-          icon="📧"
-          title="お問い合わせ"
-          subtitle="フィードバックを送る"
-          onPress={() => Alert.alert('準備中', 'この機能は準備中です')}
-        />
-
-        <MenuItem
-          icon="📋"
-          title="利用規約"
-          onPress={() => Alert.alert('準備中', 'この機能は準備中です')}
-        />
-
-        <MenuItem
-          icon="🔒"
-          title="プライバシーポリシー"
-          onPress={() => Alert.alert('準備中', 'この機能は準備中です')}
-        />
-      </View>
-
-      {/* Auth Actions */}
-      <View style={styles.section}>
-        {isMember ? (
-          <MenuItem
-            icon="🚪"
-            title="ログアウト"
-            danger
-            onPress={handleSignOut}
-          />
-        ) : (
-          <MenuItem
-            icon="🔑"
-            title="ログイン / 新規登録"
-            onPress={() => router.push('/login')}
-          />
-        )}
-      </View>
-
-      {/* App Info */}
-      <View style={styles.appInfo}>
-        <Text style={styles.appName}>RestMap</Text>
-        <Text style={styles.appVersion}>Version 1.0.0</Text>
-        <Text style={styles.appCopyright}>© 2024 RestMap</Text>
-      </View>
-    </ScrollView>
+          {/* App Info */}
+          <View style={styles.appInfo}>
+            <Text style={styles.appLogo}>🗺️</Text>
+            <Text style={styles.appName}>RestMap</Text>
+            <Text style={styles.appVersion}>Version 1.0.0</Text>
+          </View>
+        </View>
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: COLORS.primary,
   },
+
+  // Header
   header: {
-    backgroundColor: '#4A90D9',
-    padding: 24,
+    paddingTop: Platform.OS === 'ios' ? 60 : 40,
+    paddingBottom: SPACING.xl,
+    paddingHorizontal: SPACING.lg,
     alignItems: 'center',
-    paddingTop: 40,
-    paddingBottom: 30,
   },
-  avatar: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: 'rgba(255,255,255,0.3)',
+  backButton: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 60 : 40,
+    left: SPACING.md,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255,255,255,0.2)',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 12,
+  },
+  backIcon: {
+    fontSize: 20,
+    color: COLORS.textLight,
+  },
+  avatarContainer: {
+    alignItems: 'center',
+    marginBottom: SPACING.md,
+  },
+  avatar: {
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    backgroundColor: 'rgba(255,255,255,0.25)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 3,
+    borderColor: 'rgba(255,255,255,0.5)',
   },
   avatarText: {
     fontSize: 36,
-    fontWeight: 'bold',
-    color: '#fff',
+    fontWeight: '700',
+    color: COLORS.textLight,
+  },
+  statusBadge: {
+    position: 'absolute',
+    bottom: -4,
+    backgroundColor: COLORS.textLight,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: 2,
+    borderRadius: RADIUS.full,
+  },
+  statusText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: COLORS.primary,
   },
   userName: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#fff',
-    marginBottom: 4,
+    color: COLORS.textLight,
+    marginBottom: SPACING.md,
   },
-  userStatus: {
-    fontSize: 14,
-    color: 'rgba(255,255,255,0.8)',
-  },
-  statsContainer: {
+
+  // Stats
+  statsRow: {
     flexDirection: 'row',
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    borderRadius: 12,
-    marginTop: 20,
-    padding: 16,
-    paddingHorizontal: 32,
+    justifyContent: 'center',
+    gap: SPACING.md,
+    marginTop: SPACING.sm,
   },
-  statItem: {
+  statCard: {
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    paddingVertical: SPACING.md,
+    paddingHorizontal: SPACING.xl,
+    borderRadius: RADIUS.lg,
     alignItems: 'center',
-    paddingHorizontal: 20,
+    minWidth: 100,
   },
-  statNumber: {
+  statIcon: {
+    fontSize: 20,
+    marginBottom: SPACING.xs,
+  },
+  statValue: {
     fontSize: 24,
-    fontWeight: 'bold',
-    color: '#fff',
+    fontWeight: '700',
+    color: COLORS.textLight,
   },
   statLabel: {
     fontSize: 12,
     color: 'rgba(255,255,255,0.8)',
-    marginTop: 4,
+    marginTop: 2,
   },
-  statDivider: {
-    width: 1,
-    backgroundColor: 'rgba(255,255,255,0.3)',
+
+  // Content Card
+  scrollView: {
+    flex: 1,
   },
+  scrollContent: {
+    paddingBottom: SPACING.xxl,
+  },
+  contentCard: {
+    flex: 1,
+    backgroundColor: COLORS.background,
+    borderTopLeftRadius: RADIUS.xl,
+    borderTopRightRadius: RADIUS.xl,
+    paddingTop: SPACING.lg,
+    minHeight: 600,
+  },
+
+  // Promo Card
   promoCard: {
     flexDirection: 'row',
-    backgroundColor: '#fff',
-    margin: 16,
-    padding: 16,
-    borderRadius: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    alignItems: 'center',
+    backgroundColor: COLORS.surface,
+    marginHorizontal: SPACING.md,
+    marginBottom: SPACING.md,
+    padding: SPACING.md,
+    borderRadius: RADIUS.lg,
+    ...SHADOWS.small,
+  },
+  promoIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: RADIUS.md,
+    backgroundColor: '#FEF3C7',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: SPACING.md,
   },
   promoIcon: {
-    fontSize: 32,
-    marginRight: 12,
+    fontSize: 24,
   },
   promoContent: {
     flex: 1,
   },
   promoTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 4,
+    fontSize: 15,
+    fontWeight: '600',
+    color: COLORS.textPrimary,
+    marginBottom: 2,
   },
   promoText: {
-    fontSize: 13,
-    color: '#666',
+    fontSize: 12,
+    color: COLORS.textSecondary,
     lineHeight: 18,
   },
+  promoArrow: {
+    fontSize: 20,
+    color: COLORS.primary,
+    fontWeight: '600',
+  },
+
+  // Sections
   section: {
-    backgroundColor: '#fff',
-    marginTop: 16,
-    borderTopWidth: 1,
-    borderBottomWidth: 1,
-    borderColor: '#e0e0e0',
+    marginBottom: SPACING.sm,
   },
   sectionTitle: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '600',
-    color: '#888',
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 8,
+    color: COLORS.textMuted,
     textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.sm,
   },
+
+  // Menu Items
   menuItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    backgroundColor: COLORS.surface,
+    marginHorizontal: SPACING.md,
+    marginBottom: 1,
+    paddingVertical: SPACING.md,
+    paddingHorizontal: SPACING.md,
+    borderRadius: RADIUS.md,
+  },
+  menuIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: RADIUS.md,
+    backgroundColor: COLORS.background,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: SPACING.md,
   },
   menuIcon: {
-    fontSize: 20,
-    marginRight: 12,
+    fontSize: 18,
   },
   menuContent: {
     flex: 1,
   },
   menuTitle: {
-    fontSize: 16,
-    color: '#333',
+    fontSize: 15,
+    fontWeight: '500',
+    color: COLORS.textPrimary,
   },
   menuTitleDanger: {
-    color: '#FF3B30',
+    color: COLORS.error,
   },
   menuSubtitle: {
     fontSize: 13,
-    color: '#888',
+    color: COLORS.textMuted,
     marginTop: 2,
   },
   menuArrow: {
-    fontSize: 24,
-    color: '#ccc',
+    fontSize: 22,
+    color: COLORS.textMuted,
+    fontWeight: '300',
   },
+
+  // App Info
   appInfo: {
     alignItems: 'center',
-    padding: 32,
+    padding: SPACING.xl,
+    marginTop: SPACING.md,
+  },
+  appLogo: {
+    fontSize: 40,
+    marginBottom: SPACING.sm,
   },
   appName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
+    fontSize: 18,
+    fontWeight: '700',
+    color: COLORS.textPrimary,
+    letterSpacing: -0.3,
   },
   appVersion: {
     fontSize: 13,
-    color: '#888',
+    color: COLORS.textMuted,
     marginTop: 4,
-  },
-  appCopyright: {
-    fontSize: 12,
-    color: '#aaa',
-    marginTop: 8,
   },
 });

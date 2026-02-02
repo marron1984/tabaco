@@ -4,53 +4,89 @@ import { StatusBar } from 'expo-status-bar';
 import { useColorScheme } from 'react-native';
 import { AuthProvider } from '../contexts/AuthContext';
 
+// Custom theme based on Urban Minimalist design
+const CustomLightTheme = {
+  ...DefaultTheme,
+  colors: {
+    ...DefaultTheme.colors,
+    primary: '#3B82F6',
+    background: '#F8F9FA',
+    card: '#FFFFFF',
+    text: '#1F2937',
+    border: '#E5E7EB',
+  },
+};
+
+const CustomDarkTheme = {
+  ...DarkTheme,
+  colors: {
+    ...DarkTheme.colors,
+    primary: '#60A5FA',
+    background: '#121212',
+    card: '#1E1E1E',
+    text: '#F9FAFB',
+    border: '#374151',
+  },
+};
+
 export default function RootLayout() {
   const colorScheme = useColorScheme();
 
   return (
     <AuthProvider>
-      <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+      <ThemeProvider value={colorScheme === 'dark' ? CustomDarkTheme : CustomLightTheme}>
         <Stack
           screenOptions={{
-            headerStyle: { backgroundColor: '#4A90D9' },
-            headerTintColor: '#fff',
-            headerTitleStyle: { fontWeight: 'bold' },
+            headerShown: false,
+            animation: 'slide_from_right',
+            contentStyle: { backgroundColor: 'transparent' },
           }}
         >
           <Stack.Screen
             name="index"
-            options={{ title: 'RestMap' }}
+            options={{
+              headerShown: false,
+            }}
           />
           <Stack.Screen
             name="login"
             options={{
-              title: 'Sign In',
-              presentation: 'modal'
+              headerShown: false,
+              presentation: 'modal',
+              animation: 'slide_from_bottom',
             }}
           />
           <Stack.Screen
             name="spot/[id]"
-            options={{ title: 'Spot Details' }}
+            options={{
+              headerShown: false,
+              animation: 'slide_from_right',
+            }}
           />
           <Stack.Screen
             name="debug"
             options={{
               title: 'Debug Tools',
-              presentation: 'modal'
+              headerShown: true,
+              presentation: 'modal',
+              headerStyle: { backgroundColor: '#3B82F6' },
+              headerTintColor: '#fff',
             }}
           />
           <Stack.Screen
             name="add-spot"
             options={{
-              title: 'Add Spot',
-              presentation: 'modal'
+              headerShown: false,
+              presentation: 'modal',
+              animation: 'slide_from_bottom',
             }}
           />
           <Stack.Screen
             name="profile"
             options={{
-              title: 'Profile',
-              presentation: 'modal'
+              headerShown: false,
+              presentation: 'modal',
+              animation: 'slide_from_bottom',
             }}
           />
         </Stack>

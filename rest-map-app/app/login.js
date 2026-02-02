@@ -9,15 +9,17 @@ import {
   Platform,
   ScrollView,
   ActivityIndicator,
+  StatusBar,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../contexts/AuthContext';
+import { COLORS, SHADOWS, SPACING, RADIUS } from '../constants/theme';
 
 export default function LoginScreen() {
   const router = useRouter();
   const { signIn, signUp, signInAsGuest } = useAuth();
 
-  const [mode, setMode] = useState('signin'); // 'signin' or 'signup'
+  const [mode, setMode] = useState('signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -27,7 +29,7 @@ export default function LoginScreen() {
     setError(null);
 
     if (!email.trim() || !password.trim()) {
-      setError('Please enter email and password.');
+      setError('メールアドレスとパスワードを入力してください');
       return;
     }
 
@@ -58,154 +60,324 @@ export default function LoginScreen() {
   };
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={styles.container}
-    >
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        <View style={styles.header}>
-          <Text style={styles.title}>
-            {mode === 'signin' ? 'Welcome Back' : 'Create Account'}
-          </Text>
-          <Text style={styles.subtitle}>
-            {mode === 'signin'
-              ? 'Sign in to see hidden spots and reviews'
-              : 'Join to share your favorite spots'}
-          </Text>
-        </View>
+    <View style={styles.container}>
+      <StatusBar barStyle="dark-content" />
 
-        <View style={styles.form}>
-          <Text style={styles.label}>Email</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="your@email.com"
-            value={email}
-            onChangeText={setEmail}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            editable={!loading}
-          />
+      {/* Close Button */}
+      <TouchableOpacity
+        style={styles.closeButton}
+        onPress={() => router.back()}
+      >
+        <Text style={styles.closeIcon}>✕</Text>
+      </TouchableOpacity>
 
-          <Text style={styles.label}>Password</Text>
-          <TextInput
-            style={styles.input}
-            placeholder={mode === 'signup' ? 'At least 6 characters' : 'Your password'}
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-            editable={!loading}
-          />
-
-          {error && (
-            <View style={styles.errorBox}>
-              <Text style={styles.errorText}>{error}</Text>
-            </View>
-          )}
-
-          <TouchableOpacity
-            style={[styles.submitButton, loading && styles.disabled]}
-            onPress={handleSubmit}
-            disabled={loading}
-          >
-            {loading ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.submitText}>
-                {mode === 'signin' ? 'Sign In' : 'Create Account'}
-              </Text>
-            )}
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.toggleButton}
-            onPress={() => {
-              setMode(mode === 'signin' ? 'signup' : 'signin');
-              setError(null);
-            }}
-            disabled={loading}
-          >
-            <Text style={styles.toggleText}>
-              {mode === 'signin'
-                ? "Don't have an account? Sign Up"
-                : 'Already have an account? Sign In'}
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.divider}>
-          <View style={styles.dividerLine} />
-          <Text style={styles.dividerText}>or</Text>
-          <View style={styles.dividerLine} />
-        </View>
-
-        <TouchableOpacity
-          style={[styles.guestButton, loading && styles.disabled]}
-          onPress={handleGuestLogin}
-          disabled={loading}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.keyboardView}
+      >
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
         >
-          <Text style={styles.guestText}>Continue as Guest</Text>
-        </TouchableOpacity>
+          {/* Header */}
+          <View style={styles.header}>
+            <Text style={styles.logo}>🗺️</Text>
+            <Text style={styles.title}>
+              {mode === 'signin' ? 'おかえりなさい' : 'アカウント作成'}
+            </Text>
+            <Text style={styles.subtitle}>
+              {mode === 'signin'
+                ? '隠れスポットやレビューを見るにはログイン'
+                : 'お気に入りのスポットを共有しよう'}
+            </Text>
+          </View>
 
-        <Text style={styles.note}>
-          Guests can view public spots only.
-          {'\n'}Sign in to see user-submitted spots and reviews.
-        </Text>
-      </ScrollView>
-    </KeyboardAvoidingView>
+          {/* Form */}
+          <View style={styles.form}>
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>メールアドレス</Text>
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputIcon}>📧</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="your@email.com"
+                  placeholderTextColor={COLORS.textMuted}
+                  value={email}
+                  onChangeText={setEmail}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  editable={!loading}
+                />
+              </View>
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>パスワード</Text>
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputIcon}>🔒</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder={mode === 'signup' ? '6文字以上' : 'パスワード'}
+                  placeholderTextColor={COLORS.textMuted}
+                  value={password}
+                  onChangeText={setPassword}
+                  secureTextEntry
+                  editable={!loading}
+                />
+              </View>
+            </View>
+
+            {error && (
+              <View style={styles.errorBox}>
+                <Text style={styles.errorIcon}>⚠️</Text>
+                <Text style={styles.errorText}>{error}</Text>
+              </View>
+            )}
+
+            <TouchableOpacity
+              style={[styles.submitButton, loading && styles.disabled]}
+              onPress={handleSubmit}
+              disabled={loading}
+              activeOpacity={0.8}
+            >
+              {loading ? (
+                <ActivityIndicator color={COLORS.textLight} />
+              ) : (
+                <Text style={styles.submitText}>
+                  {mode === 'signin' ? 'ログイン' : 'アカウント作成'}
+                </Text>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.toggleButton}
+              onPress={() => {
+                setMode(mode === 'signin' ? 'signup' : 'signin');
+                setError(null);
+              }}
+              disabled={loading}
+            >
+              <Text style={styles.toggleText}>
+                {mode === 'signin'
+                  ? 'アカウントをお持ちでない方 → 新規登録'
+                  : 'アカウントをお持ちの方 → ログイン'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Divider */}
+          <View style={styles.divider}>
+            <View style={styles.dividerLine} />
+            <Text style={styles.dividerText}>または</Text>
+            <View style={styles.dividerLine} />
+          </View>
+
+          {/* Guest Login */}
+          <TouchableOpacity
+            style={[styles.guestButton, loading && styles.disabled]}
+            onPress={handleGuestLogin}
+            disabled={loading}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.guestIcon}>👤</Text>
+            <Text style={styles.guestText}>ゲストとして続ける</Text>
+          </TouchableOpacity>
+
+          {/* Note */}
+          <View style={styles.noteContainer}>
+            <Text style={styles.note}>
+              ゲストは公開スポットのみ閲覧可能です。{'\n'}
+              ログインするとユーザー投稿スポットやレビューが見られます。
+            </Text>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff' },
-  scrollContent: { flexGrow: 1, padding: 24, justifyContent: 'center' },
-  header: { marginBottom: 32 },
-  title: { fontSize: 28, fontWeight: 'bold', color: '#333', textAlign: 'center' },
-  subtitle: { fontSize: 15, color: '#666', textAlign: 'center', marginTop: 8 },
-  form: { marginBottom: 24 },
-  label: { fontSize: 14, fontWeight: '500', color: '#333', marginBottom: 6, marginTop: 12 },
-  input: {
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+  container: {
+    flex: 1,
+    backgroundColor: COLORS.background,
+  },
+  closeButton: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 60 : 40,
+    right: SPACING.md,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: COLORS.surface,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 10,
+    ...SHADOWS.small,
+  },
+  closeIcon: {
     fontSize: 16,
-    backgroundColor: '#f8f8f8',
+    color: COLORS.textSecondary,
+  },
+  keyboardView: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    padding: SPACING.lg,
+    paddingTop: Platform.OS === 'ios' ? 100 : 80,
+    justifyContent: 'center',
+  },
+
+  // Header
+  header: {
+    alignItems: 'center',
+    marginBottom: SPACING.xl,
+  },
+  logo: {
+    fontSize: 56,
+    marginBottom: SPACING.md,
+  },
+  title: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: COLORS.textPrimary,
+    textAlign: 'center',
+    letterSpacing: -0.5,
+  },
+  subtitle: {
+    fontSize: 15,
+    color: COLORS.textSecondary,
+    textAlign: 'center',
+    marginTop: SPACING.sm,
+    lineHeight: 22,
+  },
+
+  // Form
+  form: {
+    marginBottom: SPACING.lg,
+  },
+  inputGroup: {
+    marginBottom: SPACING.md,
+  },
+  label: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.textPrimary,
+    marginBottom: SPACING.sm,
+  },
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.surface,
+    borderRadius: RADIUS.lg,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    paddingHorizontal: SPACING.md,
+    ...SHADOWS.small,
+  },
+  inputIcon: {
+    fontSize: 16,
+    marginRight: SPACING.sm,
+  },
+  input: {
+    flex: 1,
+    paddingVertical: SPACING.md,
+    fontSize: 16,
+    color: COLORS.textPrimary,
   },
   errorBox: {
-    backgroundColor: '#FFE4E4',
-    padding: 12,
-    borderRadius: 8,
-    marginTop: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FEE2E2',
+    padding: SPACING.md,
+    borderRadius: RADIUS.md,
+    marginTop: SPACING.sm,
+    marginBottom: SPACING.sm,
   },
-  errorText: { color: '#D32F2F', fontSize: 14, textAlign: 'center' },
+  errorIcon: {
+    fontSize: 16,
+    marginRight: SPACING.sm,
+  },
+  errorText: {
+    flex: 1,
+    color: COLORS.error,
+    fontSize: 14,
+  },
   submitButton: {
-    backgroundColor: '#4A90D9',
-    paddingVertical: 14,
-    borderRadius: 10,
+    backgroundColor: COLORS.primary,
+    paddingVertical: SPACING.md,
+    borderRadius: RADIUS.lg,
     alignItems: 'center',
-    marginTop: 20,
+    marginTop: SPACING.md,
+    ...SHADOWS.medium,
   },
-  disabled: { opacity: 0.6 },
-  submitText: { color: '#fff', fontSize: 16, fontWeight: '600' },
-  toggleButton: { marginTop: 16, alignItems: 'center' },
-  toggleText: { color: '#4A90D9', fontSize: 14 },
-  divider: { flexDirection: 'row', alignItems: 'center', marginVertical: 24 },
-  dividerLine: { flex: 1, height: 1, backgroundColor: '#ddd' },
-  dividerText: { marginHorizontal: 16, color: '#999', fontSize: 14 },
+  disabled: {
+    opacity: 0.6,
+  },
+  submitText: {
+    color: COLORS.textLight,
+    fontSize: 17,
+    fontWeight: '600',
+  },
+  toggleButton: {
+    marginTop: SPACING.md,
+    alignItems: 'center',
+    padding: SPACING.sm,
+  },
+  toggleText: {
+    color: COLORS.primary,
+    fontSize: 14,
+    fontWeight: '500',
+  },
+
+  // Divider
+  divider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: SPACING.lg,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#E5E7EB',
+  },
+  dividerText: {
+    marginHorizontal: SPACING.md,
+    color: COLORS.textMuted,
+    fontSize: 13,
+  },
+
+  // Guest Button
   guestButton: {
-    backgroundColor: '#f0f0f0',
-    paddingVertical: 14,
-    borderRadius: 10,
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.surface,
+    paddingVertical: SPACING.md,
+    borderRadius: RADIUS.lg,
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: '#E5E7EB',
   },
-  guestText: { color: '#666', fontSize: 16, fontWeight: '500' },
+  guestIcon: {
+    fontSize: 18,
+    marginRight: SPACING.sm,
+  },
+  guestText: {
+    color: COLORS.textSecondary,
+    fontSize: 16,
+    fontWeight: '500',
+  },
+
+  // Note
+  noteContainer: {
+    marginTop: SPACING.lg,
+    padding: SPACING.md,
+    backgroundColor: COLORS.surface,
+    borderRadius: RADIUS.md,
+  },
   note: {
-    marginTop: 16,
     fontSize: 12,
-    color: '#999',
+    color: COLORS.textMuted,
     textAlign: 'center',
     lineHeight: 18,
   },
