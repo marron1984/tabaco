@@ -1,3 +1,5 @@
+'use client';
+
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -18,6 +20,11 @@ import { useAuth } from '../../contexts/AuthContext';
 import { doc, getDoc, collection, getDocs, addDoc, Timestamp } from 'firebase/firestore';
 import { db } from '../../firebaseConfig';
 import { COLORS, SHADOWS, SPACING, RADIUS, SPOT_COLORS } from '../../constants/theme';
+
+// Force client-side rendering for dynamic routes
+export const unstable_settings = {
+  render: 'client',
+};
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const HEADER_HEIGHT = 280;
@@ -72,7 +79,9 @@ function ReviewCard({ review }) {
 }
 
 export default function SpotDetailScreen() {
-  const { id, isPublic } = useLocalSearchParams();
+  const params = useLocalSearchParams();
+  const id = params?.id || '';
+  const isPublic = params?.isPublic || 'true';
   const router = useRouter();
   const { user, isGuest, isMember } = useAuth();
 
@@ -85,10 +94,17 @@ export default function SpotDetailScreen() {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    fetchSpotData();
+    if (id) {
+      fetchSpotData();
+    }
   }, [id]);
 
   const fetchSpotData = async () => {
+    if (!id) {
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     try {
       const collectionName = isPublic === 'true' ? 'publicSpots' : 'userSpots';
@@ -208,14 +224,17 @@ export default function SpotDetailScreen() {
     </View>
   );
 
-  if (loading) {
+  // Show loading state
+  if (loading || !id) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={COLORS.primary} />
+        <ActivityIndicator size="large" color={COLORS?.primary || '#3B82F6'} />
+        <Text style={styles.loadingText}>読み込み中...</Text>
       </View>
     );
   }
 
+  // Show error state if no spot found
   if (!spot) {
     return (
       <View style={styles.errorContainer}>
@@ -228,27 +247,36 @@ export default function SpotDetailScreen() {
     );
   }
 
-  const typeInfo = getSpotTypeInfo(spot.type);
+  // Safe access to spot properties
+  const spotType = spot?.type || 'unknown';
+  const spotName = spot?.name || 'Unknown Spot';
+  const spotAddress = spot?.address || '住所不明';
+  const spotDescription = spot?.description || '';
+  const spotIsPublic = spot?.isPublic ?? true;
+  const spotLat = spot?.lat;
+  const spotLng = spot?.lng;
+
+  const typeInfo = getSpotTypeInfo(spotType);
 
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" />
 
       {/* Immersive Header */}
-      <View style={[styles.header, { backgroundColor: typeInfo.bg }]}>
+      <View style={[styles.header, { backgroundColor: typeInfo?.bg || '#F3F4F6' }]}>
         <View style={styles.headerContent}>
-          <Text style={styles.headerEmoji}>{typeInfo.emoji}</Text>
-          <Text style={styles.headerTitle}>{spot.name}</Text>
+          <Text style={styles.headerEmoji}>{typeInfo?.emoji || '📍'}</Text>
+          <Text style={styles.headerTitle}>{spotName}</Text>
           <View style={styles.headerBadges}>
             <Tag
-              label={spot.type === 'smoking' ? '喫煙所' : spot.type === 'toilet' ? 'トイレ' : 'カフェ'}
+              label={spotType === 'smoking' ? '喫煙所' : spotType === 'toilet' ? 'トイレ' : 'カフェ'}
               color="rgba(255,255,255,0.9)"
-              textColor={typeInfo.text}
+              textColor={typeInfo?.text || '#374151'}
             />
             <Tag
-              label={spot.isPublic ? '公式' : 'ユーザー投稿'}
-              color={spot.isPublic ? COLORS.success : '#F97316'}
-              textColor={COLORS.textLight}
+              label={spotIsPublic ? '公式' : 'ユーザー投稿'}
+              color={spotIsPublic ? (COLORS?.success || '#10B981') : '#F97316'}
+              textColor={COLORS?.textLight || '#FFFFFF'}
             />
           </View>
         </View>
@@ -273,9 +301,9 @@ export default function SpotDetailScreen() {
               <View style={styles.locationIcon}>
                 <Text style={styles.locationEmoji}>📍</Text>
               </View>
-              <Text style={styles.locationText}>{spot.address}</Text>
+              <Text style={styles.locationText}>{spotAddress}</Text>
             </View>
-            {spot.lat && spot.lng && (
+            {spotLat && spotLng && (
               <TouchableOpacity style={styles.mapButton} onPress={openInMaps} activeOpacity={0.8}>
                 <Text style={styles.mapButtonIcon}>🗺️</Text>
                 <Text style={styles.mapButtonText}>マップで開く</Text>
@@ -284,12 +312,12 @@ export default function SpotDetailScreen() {
           </View>
 
           {/* Description Section */}
-          {spot.description && (
+          {spotDescription ? (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>説明</Text>
-              <Text style={styles.descriptionText}>{spot.description}</Text>
+              <Text style={styles.descriptionText}>{spotDescription}</Text>
             </View>
-          )}
+          ) : null}
 
           {/* Reviews Section */}
           <View style={styles.section}>
@@ -405,7 +433,12 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: COLORS.background,
+    backgroundColor: COLORS?.background || '#F8F9FA',
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 14,
+    color: COLORS?.textSecondary || '#6B7280',
   },
   errorContainer: {
     flex: 1,
