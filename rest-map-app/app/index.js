@@ -420,33 +420,44 @@ const mapStyle = [
 ];
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-    // Web needs explicit height
-    ...(Platform.OS === 'web' && {
+  container: Platform.select({
+    web: {
+      flex: 1,
+      backgroundColor: COLORS.background,
       height: '100vh',
       width: '100%',
       minHeight: '100vh',
-    }),
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: COLORS.background,
-    // Web needs explicit height
-    ...(Platform.OS === 'web' && {
+      display: 'flex',
+      flexDirection: 'column',
+      position: 'relative',
+      overflow: 'hidden',
+    },
+    default: {
+      flex: 1,
+      backgroundColor: COLORS.background,
+    },
+  }),
+  loadingContainer: Platform.select({
+    web: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      backgroundColor: COLORS.background,
       height: '100vh',
       width: '100%',
-    }),
-  },
+      display: 'flex',
+    },
+    default: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      backgroundColor: COLORS.background,
+    },
+  }),
 
   // Map
-  mapContainer: {
-    ...StyleSheet.absoluteFillObject,
-    // Web needs explicit dimensions
-    ...(Platform.OS === 'web' && {
+  mapContainer: Platform.select({
+    web: {
       position: 'absolute',
       top: 0,
       left: 0,
@@ -454,36 +465,55 @@ const styles = StyleSheet.create({
       bottom: 0,
       height: '100vh',
       width: '100%',
-    }),
-  },
-  map: {
-    flex: 1,
-    // Web needs explicit height
-    ...(Platform.OS === 'web' && {
+    },
+    default: {
+      ...StyleSheet.absoluteFillObject,
+    },
+  }),
+  map: Platform.select({
+    web: {
+      flex: 1,
       height: '100%',
       width: '100%',
-    }),
-  },
-  mapLoading: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: COLORS.background,
-    // Web needs explicit height
-    ...(Platform.OS === 'web' && {
+    },
+    default: {
+      flex: 1,
+    },
+  }),
+  mapLoading: Platform.select({
+    web: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      backgroundColor: COLORS.background,
       height: '100vh',
       width: '100%',
-    }),
-  },
-  webMapPlaceholder: {
-    flex: 1,
-    backgroundColor: '#E5E7EB',
-    justifyContent: 'center',
-    alignItems: 'center',
-    // Web needs explicit height
-    height: Platform.OS === 'web' ? '100vh' : undefined,
-    width: Platform.OS === 'web' ? '100%' : undefined,
-  },
+      display: 'flex',
+    },
+    default: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      backgroundColor: COLORS.background,
+    },
+  }),
+  webMapPlaceholder: Platform.select({
+    web: {
+      flex: 1,
+      backgroundColor: '#E5E7EB',
+      justifyContent: 'center',
+      alignItems: 'center',
+      height: '100vh',
+      width: '100%',
+      display: 'flex',
+    },
+    default: {
+      flex: 1,
+      backgroundColor: '#E5E7EB',
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+  }),
   webMapText: {
     fontSize: 24,
     fontWeight: '600',

@@ -31,18 +31,22 @@ const CustomDarkTheme = {
   },
 };
 
-// Styles for web height fix
+// Styles for web height fix - using Platform.select for reliability
 const styles = StyleSheet.create({
-  rootContainer: {
-    flex: 1,
-    // Web needs explicit height
-    ...(Platform.OS === 'web' && {
+  rootContainer: Platform.select({
+    web: {
+      flex: 1,
       height: '100vh',
       width: '100%',
       minHeight: '100vh',
       overflow: 'hidden',
-    }),
-  },
+      display: 'flex',
+      flexDirection: 'column',
+    },
+    default: {
+      flex: 1,
+    },
+  }),
 });
 
 export default function RootLayout() {
