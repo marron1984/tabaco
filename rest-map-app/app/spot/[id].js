@@ -8,23 +8,26 @@ import {
   TextInput,
   ActivityIndicator,
   Alert,
+  Linking,
+  Platform,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useAuth } from '../../contexts/AuthContext';
 import { doc, getDoc, collection, getDocs, addDoc, Timestamp } from 'firebase/firestore';
 import { db } from '../../firebaseConfig';
 
-// Demo data
+// Demo data (Osaka area)
 const DEMO_SPOTS = {
-  '1': { id: '1', name: 'Shibuya Station Smoking Area', type: 'smoking', address: 'Shibuya Station', description: 'Official smoking area near Hachiko exit. Well-ventilated with multiple ashtrays.', isPublic: true },
-  '2': { id: '2', name: 'Shinjuku Public Toilet', type: 'toilet', address: 'Shinjuku Station', description: 'Clean public restroom with wheelchair access and baby changing facilities.', isPublic: true },
-  '3': { id: '3', name: 'Hidden Cafe Spot', type: 'cafe', address: 'Near Shibuya', description: 'Quiet cafe with great wifi. Perfect for remote work.', isPublic: false },
-  '4': { id: '4', name: 'Rooftop Smoking Area', type: 'smoking', address: 'Harajuku', description: 'Nice view, usually empty in the morning.', isPublic: false },
+  '1': { id: '1', name: 'ヨドバシカメラ梅田 喫煙所', type: 'smoking', lat: 34.704067, lng: 135.496244, address: '大阪市北区大深町1-1', description: '梅田駅直結のヨドバシカメラ横にある公式喫煙所。屋外で換気が良い。', isPublic: true },
+  '2': { id: '2', name: '大阪駅前第3ビル トイレ', type: 'toilet', lat: 34.700909, lng: 135.498291, address: '大阪市北区梅田1-1-3', description: '地下街直結の清潔なトイレ。多目的トイレも完備。', isPublic: true },
+  '3': { id: '3', name: '難波 秘密の喫煙所', type: 'smoking', lat: 34.665487, lng: 135.501038, address: '難波駅周辺', description: '地元民しか知らない穴場スポット。混雑時でも比較的空いている。', isPublic: false },
+  '4': { id: '4', name: 'アメ村カフェ＆スモーク', type: 'cafe', lat: 34.672314, lng: 135.498556, address: '中央区西心斎橋', description: '喫煙可能なカフェ。コーヒーも美味しい。Wi-Fi完備。', isPublic: false },
 };
 
 const DEMO_REVIEWS = [
-  { id: 'r1', userName: 'TravelFan', rating: 4, comment: 'Clean and easy to find!', spotId: '1' },
-  { id: 'r2', userName: 'LocalGuide', rating: 5, comment: 'Great spot, not too crowded.', spotId: '1' },
+  { id: 'r1', userName: 'osaka_local', rating: 4, comment: '分かりやすい場所にあって便利！', spotId: '1' },
+  { id: 'r2', userName: 'traveler_jp', rating: 5, comment: '梅田で一番見つけやすい喫煙所。', spotId: '1' },
+  { id: 'r3', userName: 'cafe_lover', rating: 5, comment: 'コーヒーも雰囲気も最高です。', spotId: '4' },
 ];
 
 export default function SpotDetailScreen() {
@@ -85,7 +88,7 @@ export default function SpotDetailScreen() {
 
   const handleSubmitReview = async () => {
     if (!newComment.trim()) {
-      Alert.alert('Error', 'Please write a comment.');
+      Alert.alert('エラー', 'コメントを入力してください');
       return;
     }
 
@@ -106,7 +109,7 @@ export default function SpotDetailScreen() {
       setNewComment('');
       setNewRating(5);
       setShowReviewForm(false);
-      Alert.alert('Success', 'Review submitted!');
+      Alert.alert('完了', 'レビューを投稿しました！');
     } catch (error) {
       // Demo mode: just add locally
       const review = {
@@ -130,6 +133,32 @@ export default function SpotDetailScreen() {
       case 'cafe': return '☕';
       default: return '📍';
     }
+  };
+
+  const openInMaps = () => {
+    if (!spot?.lat || !spot?.lng) {
+      Alert.alert('エラー', 'このスポットの座標が登録されていません');
+      return;
+    }
+
+    const label = encodeURIComponent(spot.name);
+    const lat = spot.lat;
+    const lng = spot.lng;
+
+    let url;
+    if (Platform.OS === 'ios') {
+      url = `maps:?q=${label}&ll=${lat},${lng}`;
+    } else if (Platform.OS === 'android') {
+      url = `geo:${lat},${lng}?q=${lat},${lng}(${label})`;
+    } else {
+      // Web - use Google Maps
+      url = `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+    }
+
+    Linking.openURL(url).catch(() => {
+      // Fallback to Google Maps URL
+      Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${lat},${lng}`);
+    });
   };
 
   const renderStars = (rating, interactive = false) => (
@@ -157,9 +186,9 @@ export default function SpotDetailScreen() {
   if (!spot) {
     return (
       <View style={styles.errorContainer}>
-        <Text style={styles.errorText}>Spot not found</Text>
+        <Text style={styles.errorText}>スポットが見つかりません</Text>
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-          <Text style={styles.backButtonText}>Go Back</Text>
+          <Text style={styles.backButtonText}>戻る</Text>
         </TouchableOpacity>
       </View>
     );
@@ -183,31 +212,37 @@ export default function SpotDetailScreen() {
         </View>
       </View>
 
-      {/* Details */}
+      {/* Location Details */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Location</Text>
+        <Text style={styles.sectionTitle}>場所</Text>
         <Text style={styles.text}>{spot.address}</Text>
+        {spot.lat && spot.lng && (
+          <TouchableOpacity style={styles.mapButton} onPress={openInMaps}>
+            <Text style={styles.mapButtonIcon}>🗺️</Text>
+            <Text style={styles.mapButtonText}>マップで開く</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       {spot.description && (
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Description</Text>
+          <Text style={styles.sectionTitle}>説明</Text>
           <Text style={styles.text}>{spot.description}</Text>
         </View>
       )}
 
       {/* Reviews Section */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Reviews</Text>
+        <Text style={styles.sectionTitle}>レビュー</Text>
 
         {isGuest ? (
           <View style={styles.loginPrompt}>
-            <Text style={styles.loginPromptText}>Sign in to view and write reviews</Text>
+            <Text style={styles.loginPromptText}>ログインするとレビューの閲覧・投稿ができます</Text>
             <TouchableOpacity
               style={styles.loginButton}
               onPress={() => router.push('/login')}
             >
-              <Text style={styles.loginButtonText}>Sign In</Text>
+              <Text style={styles.loginButtonText}>ログイン</Text>
             </TouchableOpacity>
           </View>
         ) : (
@@ -218,22 +253,22 @@ export default function SpotDetailScreen() {
                 style={styles.writeReviewButton}
                 onPress={() => setShowReviewForm(true)}
               >
-                <Text style={styles.writeReviewText}>Write a Review</Text>
+                <Text style={styles.writeReviewText}>レビューを書く</Text>
               </TouchableOpacity>
             )}
 
             {/* Review Form */}
             {showReviewForm && (
               <View style={styles.reviewForm}>
-                <Text style={styles.formLabel}>Your Rating</Text>
+                <Text style={styles.formLabel}>評価</Text>
                 {renderStars(newRating, true)}
 
-                <Text style={styles.formLabel}>Comment</Text>
+                <Text style={styles.formLabel}>コメント</Text>
                 <TextInput
                   style={styles.textArea}
                   multiline
                   numberOfLines={4}
-                  placeholder="Share your experience..."
+                  placeholder="感想を共有してください..."
                   value={newComment}
                   onChangeText={setNewComment}
                   editable={!submitting}
@@ -244,7 +279,7 @@ export default function SpotDetailScreen() {
                     style={styles.cancelButton}
                     onPress={() => setShowReviewForm(false)}
                   >
-                    <Text style={styles.cancelText}>Cancel</Text>
+                    <Text style={styles.cancelText}>キャンセル</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={[styles.submitButton, submitting && styles.disabled]}
@@ -254,7 +289,7 @@ export default function SpotDetailScreen() {
                     {submitting ? (
                       <ActivityIndicator color="#fff" size="small" />
                     ) : (
-                      <Text style={styles.submitText}>Submit</Text>
+                      <Text style={styles.submitText}>投稿</Text>
                     )}
                   </TouchableOpacity>
                 </View>
@@ -263,7 +298,7 @@ export default function SpotDetailScreen() {
 
             {/* Reviews List */}
             {reviews.length === 0 ? (
-              <Text style={styles.noReviews}>No reviews yet. Be the first!</Text>
+              <Text style={styles.noReviews}>まだレビューがありません。最初のレビューを書きましょう！</Text>
             ) : (
               reviews.map(review => (
                 <View key={review.id} style={styles.reviewCard}>
@@ -308,6 +343,17 @@ const styles = StyleSheet.create({
   section: { padding: 20, borderBottomWidth: 1, borderBottomColor: '#f0f0f0' },
   sectionTitle: { fontSize: 16, fontWeight: '600', color: '#333', marginBottom: 8 },
   text: { fontSize: 15, color: '#666', lineHeight: 22 },
+  mapButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#4A90D9',
+    padding: 12,
+    borderRadius: 8,
+    marginTop: 12,
+    justifyContent: 'center',
+  },
+  mapButtonIcon: { fontSize: 18, marginRight: 8 },
+  mapButtonText: { color: '#fff', fontWeight: '600', fontSize: 15 },
   loginPrompt: {
     alignItems: 'center',
     padding: 20,

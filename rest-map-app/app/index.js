@@ -6,7 +6,8 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
-  Platform
+  Platform,
+  TextInput,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as Location from 'expo-location';
@@ -85,6 +86,8 @@ export default function MapScreen() {
   const { user, isGuest, isMember, signOut, loading: authLoading } = useAuth();
 
   const [spots, setSpots] = useState([]);
+  const [filteredSpots, setFilteredSpots] = useState([]);
+  const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   // Default region: Osaka Station area
   const [region, setRegion] = useState({
@@ -166,6 +169,20 @@ export default function MapScreen() {
     }
   }, [authLoading, fetchSpots]);
 
+  // Apply search filter
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setFilteredSpots(spots);
+    } else {
+      const query = searchQuery.toLowerCase();
+      const filtered = spots.filter(spot =>
+        spot.name.toLowerCase().includes(query) ||
+        (spot.address && spot.address.toLowerCase().includes(query))
+      );
+      setFilteredSpots(filtered);
+    }
+  }, [spots, searchQuery]);
+
   const handleSpotPress = (spot) => {
     router.push(`/spot/${spot.id}?isPublic=${spot.isPublic}`);
   };
@@ -202,6 +219,12 @@ export default function MapScreen() {
             <Text style={styles.debugButtonText}>Debug</Text>
           </TouchableOpacity>
           <TouchableOpacity
+            style={styles.profileButton}
+            onPress={() => router.push('/profile')}
+          >
+            <Text style={styles.profileButtonText}>👤</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
             style={styles.authButton}
             onPress={() => isMember ? signOut() : router.push('/login')}
           >
@@ -210,6 +233,23 @@ export default function MapScreen() {
             </Text>
           </TouchableOpacity>
         </View>
+      </View>
+
+      {/* Search Bar */}
+      <View style={styles.searchContainer}>
+        <Text style={styles.searchIcon}>🔍</Text>
+        <TextInput
+          style={styles.searchInput}
+          placeholder="スポットを検索..."
+          placeholderTextColor="#999"
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+        />
+        {searchQuery.length > 0 && (
+          <TouchableOpacity onPress={() => setSearchQuery('')}>
+            <Text style={styles.searchClear}>✕</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Filters */}
@@ -249,7 +289,7 @@ export default function MapScreen() {
           <ActivityIndicator size="large" color="#4A90D9" />
         ) : (
           <MapComponent
-            spots={spots}
+            spots={filteredSpots}
             region={region}
             onSpotPress={handleSpotPress}
           />
@@ -259,9 +299,19 @@ export default function MapScreen() {
       {/* Spot count */}
       <View style={styles.footer}>
         <Text style={styles.spotCount}>
-          {spots.length} spots {isGuest ? '(public only)' : ''}
+          {filteredSpots.length} spots {searchQuery ? '(filtered)' : isGuest ? '(public only)' : ''}
         </Text>
       </View>
+
+      {/* Add Spot FAB - Members only */}
+      {isMember && (
+        <TouchableOpacity
+          style={styles.fab}
+          onPress={() => router.push('/add-spot')}
+        >
+          <Text style={styles.fabIcon}>+</Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 }
@@ -289,6 +339,14 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   debugButtonText: { color: '#fff', fontWeight: '600', fontSize: 12 },
+  profileButton: {
+    backgroundColor: '#f0f0f0',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 20,
+    marginRight: 8,
+  },
+  profileButtonText: { fontSize: 18 },
   authButton: {
     backgroundColor: '#4A90D9',
     paddingHorizontal: 16,
@@ -296,6 +354,33 @@ const styles = StyleSheet.create({
     borderRadius: 20,
   },
   authButtonText: { color: '#fff', fontWeight: '600', fontSize: 13 },
+  // Search
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f5f5f5',
+    marginHorizontal: 12,
+    marginTop: 10,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
+  searchIcon: {
+    fontSize: 16,
+    marginRight: 8,
+  },
+  searchInput: {
+    flex: 1,
+    paddingVertical: 10,
+    fontSize: 15,
+    color: '#333',
+  },
+  searchClear: {
+    fontSize: 16,
+    color: '#999',
+    padding: 4,
+  },
   filterContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
@@ -366,4 +451,27 @@ const styles = StyleSheet.create({
   spotName: { fontSize: 16, fontWeight: 'bold', color: '#333' },
   spotAddress: { fontSize: 14, color: '#666', marginTop: 4 },
   spotBadge: { fontSize: 11, color: '#999', marginTop: 4 },
+  // FAB
+  fab: {
+    position: 'absolute',
+    bottom: 80,
+    right: 20,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#4CAF50',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 8,
+  },
+  fabIcon: {
+    fontSize: 32,
+    color: '#fff',
+    fontWeight: '300',
+    marginTop: -2,
+  },
 });

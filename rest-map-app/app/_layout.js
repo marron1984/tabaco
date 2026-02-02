@@ -39,6 +39,20 @@ export default function RootLayout() {
               presentation: 'modal'
             }}
           />
+          <Stack.Screen
+            name="add-spot"
+            options={{
+              title: 'Add Spot',
+              presentation: 'modal'
+            }}
+          />
+          <Stack.Screen
+            name="profile"
+            options={{
+              title: 'Profile',
+              presentation: 'modal'
+            }}
+          />
         </Stack>
         <StatusBar style="auto" />
       </ThemeProvider>
