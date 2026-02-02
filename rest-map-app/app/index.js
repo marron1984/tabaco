@@ -423,32 +423,66 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.background,
+    // Web needs explicit height
+    ...(Platform.OS === 'web' && {
+      height: '100vh',
+      width: '100%',
+      minHeight: '100vh',
+    }),
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: COLORS.background,
+    // Web needs explicit height
+    ...(Platform.OS === 'web' && {
+      height: '100vh',
+      width: '100%',
+    }),
   },
 
   // Map
   mapContainer: {
     ...StyleSheet.absoluteFillObject,
+    // Web needs explicit dimensions
+    ...(Platform.OS === 'web' && {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      height: '100vh',
+      width: '100%',
+    }),
   },
   map: {
     flex: 1,
+    // Web needs explicit height
+    ...(Platform.OS === 'web' && {
+      height: '100%',
+      width: '100%',
+    }),
   },
   mapLoading: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: COLORS.background,
+    // Web needs explicit height
+    ...(Platform.OS === 'web' && {
+      height: '100vh',
+      width: '100%',
+    }),
   },
   webMapPlaceholder: {
     flex: 1,
     backgroundColor: '#E5E7EB',
     justifyContent: 'center',
     alignItems: 'center',
+    // Web needs explicit height
+    height: Platform.OS === 'web' ? '100vh' : undefined,
+    width: Platform.OS === 'web' ? '100%' : undefined,
   },
   webMapText: {
     fontSize: 24,
