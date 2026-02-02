@@ -1,7 +1,11 @@
 {
-  "rootDirectory": "rest-map-app",
-  "installCommand": "npm install --legacy-peer-deps",
-  "buildCommand": "npm run build",
-  "outputDirectory": "dist",
-  "framework": null
+  "buildCommand": "cd rest-map-app && npm install --legacy-peer-deps && npm run build",
+  "outputDirectory": "rest-map-app/dist",
+  "framework": null,
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
 }
