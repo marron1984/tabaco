@@ -1,3 +1,5 @@
+'use client';
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
@@ -19,6 +21,11 @@ import { collection, getDocs, query } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import { COLORS, SHADOWS, SPACING, RADIUS, SPOT_COLORS } from '../constants/theme';
 
+// Force client-side rendering
+export const unstable_settings = {
+  render: 'client',
+};
+
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');
 const BOTTOM_SHEET_MIN = 180;
 const BOTTOM_SHEET_MAX = SCREEN_HEIGHT * 0.65;
@@ -35,7 +42,10 @@ const DEMO_MEMBER_SPOTS = [
 ];
 
 // Glassmorphism Map component
-function MapComponent({ spots, onSpotPress, region }) {
+function MapComponent({ spots = [], onSpotPress, region }) {
+  // Safe spots array
+  const safeSpots = Array.isArray(spots) ? spots : [];
+
   if (Platform.OS === 'web') {
     return (
       <View style={styles.webMapPlaceholder}>
@@ -45,8 +55,20 @@ function MapComponent({ spots, onSpotPress, region }) {
     );
   }
 
-  const MapView = require('react-native-maps').default;
-  const { Marker } = require('react-native-maps');
+  // Dynamic import for native maps
+  let MapView, Marker;
+  try {
+    MapView = require('react-native-maps').default;
+    Marker = require('react-native-maps').Marker;
+  } catch (e) {
+    // Fallback if maps not available
+    return (
+      <View style={styles.webMapPlaceholder}>
+        <Text style={styles.webMapText}>Map</Text>
+        <Text style={styles.webMapSubtext}>{safeSpots.length} spots</Text>
+      </View>
+    );
+  }
 
   return (
     <MapView
@@ -56,26 +78,37 @@ function MapComponent({ spots, onSpotPress, region }) {
       showsMyLocationButton={false}
       customMapStyle={mapStyle}
     >
-      {spots.map(spot => (
-        <Marker
-          key={spot.id}
-          coordinate={{ latitude: spot.lat, longitude: spot.lng }}
-          title={spot.name}
-          description={spot.address}
-          onPress={() => onSpotPress(spot)}
-        >
-          <View style={[styles.marker, { backgroundColor: SPOT_COLORS[spot.type]?.bg || COLORS.glass }]}>
-            <Text style={styles.markerEmoji}>{SPOT_COLORS[spot.type]?.emoji || '📍'}</Text>
-          </View>
-        </Marker>
-      ))}
+      {safeSpots.map(spot => {
+        if (!spot?.id || !spot?.lat || !spot?.lng) return null;
+        const spotType = spot?.type || 'unknown';
+        return (
+          <Marker
+            key={spot.id}
+            coordinate={{ latitude: spot.lat, longitude: spot.lng }}
+            title={spot?.name || 'Unknown'}
+            description={spot?.address || ''}
+            onPress={() => onSpotPress && onSpotPress(spot)}
+          >
+            <View style={[styles.marker, { backgroundColor: SPOT_COLORS?.[spotType]?.bg || COLORS?.glass || '#F3F4F6' }]}>
+              <Text style={styles.markerEmoji}>{SPOT_COLORS?.[spotType]?.emoji || '📍'}</Text>
+            </View>
+          </Marker>
+        );
+      })}
     </MapView>
   );
 }
 
 // Spot Card Component
 function SpotCard({ spot, onPress }) {
-  const typeColor = SPOT_COLORS[spot.type] || { bg: '#F3F4F6', text: '#374151', emoji: '📍' };
+  if (!spot) return null;
+
+  const spotType = spot?.type || 'unknown';
+  const spotName = spot?.name || 'Unknown';
+  const spotAddress = spot?.address || '';
+  const spotIsPublic = spot?.isPublic ?? true;
+
+  const typeColor = SPOT_COLORS?.[spotType] || { bg: '#F3F4F6', text: '#374151', emoji: '📍' };
 
   return (
     <TouchableOpacity
@@ -83,19 +116,19 @@ function SpotCard({ spot, onPress }) {
       onPress={onPress}
       activeOpacity={0.7}
     >
-      <View style={[styles.spotCardIcon, { backgroundColor: typeColor.bg }]}>
-        <Text style={styles.spotCardEmoji}>{typeColor.emoji}</Text>
+      <View style={[styles.spotCardIcon, { backgroundColor: typeColor?.bg || '#F3F4F6' }]}>
+        <Text style={styles.spotCardEmoji}>{typeColor?.emoji || '📍'}</Text>
       </View>
       <View style={styles.spotCardContent}>
-        <Text style={styles.spotCardName} numberOfLines={1}>{spot.name}</Text>
-        <Text style={styles.spotCardAddress} numberOfLines={1}>{spot.address}</Text>
+        <Text style={styles.spotCardName} numberOfLines={1}>{spotName}</Text>
+        <Text style={styles.spotCardAddress} numberOfLines={1}>{spotAddress}</Text>
         <View style={styles.spotCardTags}>
-          <View style={[styles.tag, { backgroundColor: typeColor.bg }]}>
-            <Text style={[styles.tagText, { color: typeColor.text }]}>
-              {spot.type === 'smoking' ? '喫煙所' : spot.type === 'toilet' ? 'トイレ' : 'カフェ'}
+          <View style={[styles.tag, { backgroundColor: typeColor?.bg || '#F3F4F6' }]}>
+            <Text style={[styles.tagText, { color: typeColor?.text || '#374151' }]}>
+              {spotType === 'smoking' ? '喫煙所' : spotType === 'toilet' ? 'トイレ' : 'カフェ'}
             </Text>
           </View>
-          {!spot.isPublic && (
+          {!spotIsPublic && (
             <View style={[styles.tag, styles.tagUser]}>
               <Text style={styles.tagTextUser}>ユーザー投稿</Text>
             </View>
