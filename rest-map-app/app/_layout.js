@@ -32,6 +32,13 @@ export default function RootLayout() {
             name="spot/[id]"
             options={{ title: 'Spot Details' }}
           />
+          <Stack.Screen
+            name="debug"
+            options={{
+              title: 'Debug Tools',
+              presentation: 'modal'
+            }}
+          />
         </Stack>
         <StatusBar style="auto" />
       </ThemeProvider>

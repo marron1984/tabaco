@@ -14,15 +14,15 @@ import { useAuth } from '../contexts/AuthContext';
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 
-// Demo data for testing without Firebase
+// Demo data for testing without Firebase (Osaka area)
 const DEMO_PUBLIC_SPOTS = [
-  { id: '1', name: 'Shibuya Station Smoking Area', type: 'smoking', lat: 35.6580, lng: 139.7016, address: 'Shibuya Station', isPublic: true },
-  { id: '2', name: 'Shinjuku Public Toilet', type: 'toilet', lat: 35.6896, lng: 139.6917, address: 'Shinjuku Station', isPublic: true },
+  { id: '1', name: 'ヨドバシカメラ梅田 喫煙所', type: 'smoking', lat: 34.704067, lng: 135.496244, address: '大阪市北区大深町1-1', isPublic: true },
+  { id: '2', name: '大阪駅前第3ビル トイレ', type: 'toilet', lat: 34.700909, lng: 135.498291, address: '大阪市北区梅田1-1-3', isPublic: true },
 ];
 
 const DEMO_MEMBER_SPOTS = [
-  { id: '3', name: 'Hidden Cafe Spot', type: 'cafe', lat: 35.6620, lng: 139.7050, address: 'Near Shibuya', isPublic: false },
-  { id: '4', name: 'Rooftop Smoking Area', type: 'smoking', lat: 35.6700, lng: 139.7030, address: 'Harajuku', isPublic: false },
+  { id: '3', name: '難波 秘密の喫煙所', type: 'smoking', lat: 34.665487, lng: 135.501038, address: '難波駅周辺', isPublic: false },
+  { id: '4', name: 'アメ村カフェ＆スモーク', type: 'cafe', lat: 34.672314, lng: 135.498556, address: '中央区西心斎橋', isPublic: false },
 ];
 
 // Web-compatible Map component
@@ -86,9 +86,10 @@ export default function MapScreen() {
 
   const [spots, setSpots] = useState([]);
   const [loading, setLoading] = useState(true);
+  // Default region: Osaka Station area
   const [region, setRegion] = useState({
-    latitude: 35.6762,
-    longitude: 139.6503,
+    latitude: 34.702485,
+    longitude: 135.495951,
     latitudeDelta: 0.05,
     longitudeDelta: 0.05,
   });
@@ -193,14 +194,22 @@ export default function MapScreen() {
             <Text style={styles.guestHint}>Sign in to see hidden spots</Text>
           )}
         </View>
-        <TouchableOpacity
-          style={styles.authButton}
-          onPress={() => isMember ? signOut() : router.push('/login')}
-        >
-          <Text style={styles.authButtonText}>
-            {isMember ? 'Sign Out' : 'Sign In'}
-          </Text>
-        </TouchableOpacity>
+        <View style={styles.headerButtons}>
+          <TouchableOpacity
+            style={styles.debugButton}
+            onPress={() => router.push('/debug')}
+          >
+            <Text style={styles.debugButtonText}>Debug</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.authButton}
+            onPress={() => isMember ? signOut() : router.push('/login')}
+          >
+            <Text style={styles.authButtonText}>
+              {isMember ? 'Sign Out' : 'Sign In'}
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Filters */}
@@ -271,6 +280,15 @@ const styles = StyleSheet.create({
   },
   statusText: { fontSize: 14, fontWeight: '600', color: '#333' },
   guestHint: { fontSize: 11, color: '#666', marginTop: 2 },
+  headerButtons: { flexDirection: 'row', alignItems: 'center' },
+  debugButton: {
+    backgroundColor: '#888',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    marginRight: 8,
+  },
+  debugButtonText: { color: '#fff', fontWeight: '600', fontSize: 12 },
   authButton: {
     backgroundColor: '#4A90D9',
     paddingHorizontal: 16,
