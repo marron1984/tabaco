@@ -1,19 +1,27 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   ActivityIndicator,
-  Alert,
   Platform,
   TextInput,
+  Animated,
+  Dimensions,
+  ScrollView,
+  StatusBar,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as Location from 'expo-location';
 import { useAuth } from '../contexts/AuthContext';
-import { collection, getDocs, query, where } from 'firebase/firestore';
+import { collection, getDocs, query } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
+import { COLORS, SHADOWS, SPACING, RADIUS, SPOT_COLORS } from '../constants/theme';
+
+const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');
+const BOTTOM_SHEET_MIN = 180;
+const BOTTOM_SHEET_MAX = SCREEN_HEIGHT * 0.65;
 
 // Demo data for testing without Firebase (Osaka area)
 const DEMO_PUBLIC_SPOTS = [
@@ -26,38 +34,17 @@ const DEMO_MEMBER_SPOTS = [
   { id: '4', name: 'アメ村カフェ＆スモーク', type: 'cafe', lat: 34.672314, lng: 135.498556, address: '中央区西心斎橋', isPublic: false },
 ];
 
-// Web-compatible Map component
+// Glassmorphism Map component
 function MapComponent({ spots, onSpotPress, region }) {
   if (Platform.OS === 'web') {
     return (
-      <View style={styles.webMapContainer}>
-        <Text style={styles.webMapTitle}>Map View (Web)</Text>
-        <Text style={styles.webMapSubtitle}>{spots.length} spots found</Text>
-        <View style={styles.spotList}>
-          {spots.map(spot => (
-            <TouchableOpacity
-              key={spot.id}
-              style={styles.spotCard}
-              onPress={() => onSpotPress(spot)}
-            >
-              <Text style={styles.spotEmoji}>
-                {spot.type === 'smoking' ? '🚬' : spot.type === 'toilet' ? '🚻' : '☕'}
-              </Text>
-              <View style={styles.spotInfo}>
-                <Text style={styles.spotName}>{spot.name}</Text>
-                <Text style={styles.spotAddress}>{spot.address}</Text>
-                <Text style={styles.spotBadge}>
-                  {spot.isPublic ? 'Official' : 'User Submitted'}
-                </Text>
-              </View>
-            </TouchableOpacity>
-          ))}
-        </View>
+      <View style={styles.webMapPlaceholder}>
+        <Text style={styles.webMapText}>Map View</Text>
+        <Text style={styles.webMapSubtext}>大阪エリア</Text>
       </View>
     );
   }
 
-  // Native MapView
   const MapView = require('react-native-maps').default;
   const { Marker } = require('react-native-maps');
 
@@ -66,6 +53,8 @@ function MapComponent({ spots, onSpotPress, region }) {
       style={styles.map}
       initialRegion={region}
       showsUserLocation
+      showsMyLocationButton={false}
+      customMapStyle={mapStyle}
     >
       {spots.map(spot => (
         <Marker
@@ -73,23 +62,63 @@ function MapComponent({ spots, onSpotPress, region }) {
           coordinate={{ latitude: spot.lat, longitude: spot.lng }}
           title={spot.name}
           description={spot.address}
-          pinColor={spot.type === 'smoking' ? '#FF6B6B' : spot.type === 'toilet' ? '#4ECDC4' : '#A67C52'}
           onPress={() => onSpotPress(spot)}
-        />
+        >
+          <View style={[styles.marker, { backgroundColor: SPOT_COLORS[spot.type]?.bg || COLORS.glass }]}>
+            <Text style={styles.markerEmoji}>{SPOT_COLORS[spot.type]?.emoji || '📍'}</Text>
+          </View>
+        </Marker>
       ))}
     </MapView>
+  );
+}
+
+// Spot Card Component
+function SpotCard({ spot, onPress }) {
+  const typeColor = SPOT_COLORS[spot.type] || { bg: '#F3F4F6', text: '#374151', emoji: '📍' };
+
+  return (
+    <TouchableOpacity
+      style={styles.spotCard}
+      onPress={onPress}
+      activeOpacity={0.7}
+    >
+      <View style={[styles.spotCardIcon, { backgroundColor: typeColor.bg }]}>
+        <Text style={styles.spotCardEmoji}>{typeColor.emoji}</Text>
+      </View>
+      <View style={styles.spotCardContent}>
+        <Text style={styles.spotCardName} numberOfLines={1}>{spot.name}</Text>
+        <Text style={styles.spotCardAddress} numberOfLines={1}>{spot.address}</Text>
+        <View style={styles.spotCardTags}>
+          <View style={[styles.tag, { backgroundColor: typeColor.bg }]}>
+            <Text style={[styles.tagText, { color: typeColor.text }]}>
+              {spot.type === 'smoking' ? '喫煙所' : spot.type === 'toilet' ? 'トイレ' : 'カフェ'}
+            </Text>
+          </View>
+          {!spot.isPublic && (
+            <View style={[styles.tag, styles.tagUser]}>
+              <Text style={styles.tagTextUser}>ユーザー投稿</Text>
+            </View>
+          )}
+        </View>
+      </View>
+      <View style={styles.spotCardArrow}>
+        <Text style={styles.arrowText}>›</Text>
+      </View>
+    </TouchableOpacity>
   );
 }
 
 export default function MapScreen() {
   const router = useRouter();
   const { user, isGuest, isMember, signOut, loading: authLoading } = useAuth();
+  const bottomSheetAnim = useRef(new Animated.Value(BOTTOM_SHEET_MIN)).current;
+  const [isExpanded, setIsExpanded] = useState(false);
 
   const [spots, setSpots] = useState([]);
   const [filteredSpots, setFilteredSpots] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
-  // Default region: Osaka Station area
   const [region, setRegion] = useState({
     latitude: 34.702485,
     longitude: 135.495951,
@@ -98,7 +127,6 @@ export default function MapScreen() {
   });
   const [filter, setFilter] = useState({ smoking: true, toilet: true, cafe: true });
 
-  // Get current location
   useEffect(() => {
     (async () => {
       const { status } = await Location.requestForegroundPermissionsAsync();
@@ -113,11 +141,9 @@ export default function MapScreen() {
     })();
   }, []);
 
-  // Fetch spots based on auth state
   const fetchSpots = useCallback(async () => {
     setLoading(true);
     try {
-      // Try Firestore first
       let publicSpots = [];
       let memberSpots = [];
 
@@ -126,7 +152,6 @@ export default function MapScreen() {
         const publicSnapshot = await getDocs(publicQuery);
         publicSpots = publicSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       } catch (e) {
-        // Firestore not configured, use demo data
         publicSpots = DEMO_PUBLIC_SPOTS;
       }
 
@@ -140,13 +165,11 @@ export default function MapScreen() {
         }
       }
 
-      // If no Firestore data, use demo
       if (publicSpots.length === 0) {
         publicSpots = DEMO_PUBLIC_SPOTS;
         memberSpots = isMember ? DEMO_MEMBER_SPOTS : [];
       }
 
-      // Apply filters
       const allSpots = [...publicSpots, ...memberSpots].filter(spot => {
         if (spot.type === 'smoking' && !filter.smoking) return false;
         if (spot.type === 'toilet' && !filter.toilet) return false;
@@ -169,15 +192,14 @@ export default function MapScreen() {
     }
   }, [authLoading, fetchSpots]);
 
-  // Apply search filter
   useEffect(() => {
     if (!searchQuery.trim()) {
       setFilteredSpots(spots);
     } else {
-      const query = searchQuery.toLowerCase();
+      const q = searchQuery.toLowerCase();
       const filtered = spots.filter(spot =>
-        spot.name.toLowerCase().includes(query) ||
-        (spot.address && spot.address.toLowerCase().includes(query))
+        spot.name.toLowerCase().includes(q) ||
+        (spot.address && spot.address.toLowerCase().includes(q))
       );
       setFilteredSpots(filtered);
     }
@@ -191,102 +213,34 @@ export default function MapScreen() {
     setFilter(prev => ({ ...prev, [type]: !prev[type] }));
   };
 
+  const toggleBottomSheet = () => {
+    const toValue = isExpanded ? BOTTOM_SHEET_MIN : BOTTOM_SHEET_MAX;
+    Animated.spring(bottomSheetAnim, {
+      toValue,
+      useNativeDriver: false,
+      friction: 10,
+    }).start();
+    setIsExpanded(!isExpanded);
+  };
+
   if (authLoading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#4A90D9" />
+        <ActivityIndicator size="large" color={COLORS.primary} />
       </View>
     );
   }
 
   return (
     <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.statusText}>
-            {isMember ? `Welcome, ${user?.email || 'Member'}` : 'Browsing as Guest'}
-          </Text>
-          {isGuest && (
-            <Text style={styles.guestHint}>Sign in to see hidden spots</Text>
-          )}
-        </View>
-        <View style={styles.headerButtons}>
-          <TouchableOpacity
-            style={styles.debugButton}
-            onPress={() => router.push('/debug')}
-          >
-            <Text style={styles.debugButtonText}>Debug</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.profileButton}
-            onPress={() => router.push('/profile')}
-          >
-            <Text style={styles.profileButtonText}>👤</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.authButton}
-            onPress={() => isMember ? signOut() : router.push('/login')}
-          >
-            <Text style={styles.authButtonText}>
-              {isMember ? 'Sign Out' : 'Sign In'}
-            </Text>
-          </TouchableOpacity>
-        </View>
-      </View>
+      <StatusBar barStyle="dark-content" />
 
-      {/* Search Bar */}
-      <View style={styles.searchContainer}>
-        <Text style={styles.searchIcon}>🔍</Text>
-        <TextInput
-          style={styles.searchInput}
-          placeholder="スポットを検索..."
-          placeholderTextColor="#999"
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-        />
-        {searchQuery.length > 0 && (
-          <TouchableOpacity onPress={() => setSearchQuery('')}>
-            <Text style={styles.searchClear}>✕</Text>
-          </TouchableOpacity>
-        )}
-      </View>
-
-      {/* Filters */}
-      <View style={styles.filterContainer}>
-        <TouchableOpacity
-          style={[styles.filterButton, filter.smoking && styles.filterActive]}
-          onPress={() => toggleFilter('smoking')}
-        >
-          <Text style={styles.filterEmoji}>🚬</Text>
-          <Text style={[styles.filterText, filter.smoking && styles.filterTextActive]}>
-            Smoking
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.filterButton, filter.toilet && styles.filterActive]}
-          onPress={() => toggleFilter('toilet')}
-        >
-          <Text style={styles.filterEmoji}>🚻</Text>
-          <Text style={[styles.filterText, filter.toilet && styles.filterTextActive]}>
-            Toilet
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.filterButton, filter.cafe && styles.filterActive]}
-          onPress={() => toggleFilter('cafe')}
-        >
-          <Text style={styles.filterEmoji}>☕</Text>
-          <Text style={[styles.filterText, filter.cafe && styles.filterTextActive]}>
-            Cafe
-          </Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Map or List */}
+      {/* Fullscreen Map */}
       <View style={styles.mapContainer}>
         {loading ? (
-          <ActivityIndicator size="large" color="#4A90D9" />
+          <View style={styles.mapLoading}>
+            <ActivityIndicator size="large" color={COLORS.primary} />
+          </View>
         ) : (
           <MapComponent
             spots={filteredSpots}
@@ -296,182 +250,453 @@ export default function MapScreen() {
         )}
       </View>
 
-      {/* Spot count */}
-      <View style={styles.footer}>
-        <Text style={styles.spotCount}>
-          {filteredSpots.length} spots {searchQuery ? '(filtered)' : isGuest ? '(public only)' : ''}
-        </Text>
+      {/* Floating Header */}
+      <View style={styles.floatingHeader}>
+        {/* Search Bar */}
+        <View style={styles.searchBar}>
+          <Text style={styles.searchIcon}>🔍</Text>
+          <TextInput
+            style={styles.searchInput}
+            placeholder="スポットを検索..."
+            placeholderTextColor={COLORS.textMuted}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchQuery('')} style={styles.clearButton}>
+              <Text style={styles.clearText}>✕</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* Filter Pills */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.filterScroll}
+        >
+          {[
+            { key: 'smoking', label: '喫煙所', emoji: '🚬' },
+            { key: 'toilet', label: 'トイレ', emoji: '🚻' },
+            { key: 'cafe', label: 'カフェ', emoji: '☕' },
+          ].map(item => (
+            <TouchableOpacity
+              key={item.key}
+              style={[
+                styles.filterPill,
+                filter[item.key] && styles.filterPillActive,
+              ]}
+              onPress={() => toggleFilter(item.key)}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.filterEmoji}>{item.emoji}</Text>
+              <Text style={[
+                styles.filterLabel,
+                filter[item.key] && styles.filterLabelActive,
+              ]}>
+                {item.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
       </View>
 
-      {/* Add Spot FAB - Members only */}
+      {/* Top Right Actions */}
+      <View style={styles.topRightActions}>
+        <TouchableOpacity
+          style={styles.actionButton}
+          onPress={() => router.push('/profile')}
+          activeOpacity={0.8}
+        >
+          <Text style={styles.actionIcon}>👤</Text>
+        </TouchableOpacity>
+        {isMember && (
+          <TouchableOpacity
+            style={[styles.actionButton, styles.actionButtonSmall]}
+            onPress={signOut}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.actionIconSmall}>🚪</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {/* Bottom Sheet */}
+      <Animated.View style={[styles.bottomSheet, { height: bottomSheetAnim }]}>
+        {/* Handle */}
+        <TouchableOpacity style={styles.bottomSheetHandle} onPress={toggleBottomSheet}>
+          <View style={styles.handle} />
+          <Text style={styles.bottomSheetTitle}>
+            {filteredSpots.length} スポット {isGuest && '(公開のみ)'}
+          </Text>
+        </TouchableOpacity>
+
+        {/* Spot List */}
+        <ScrollView
+          style={styles.spotList}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.spotListContent}
+        >
+          {filteredSpots.map(spot => (
+            <SpotCard
+              key={spot.id}
+              spot={spot}
+              onPress={() => handleSpotPress(spot)}
+            />
+          ))}
+          {filteredSpots.length === 0 && (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyIcon}>🔍</Text>
+              <Text style={styles.emptyText}>スポットが見つかりません</Text>
+            </View>
+          )}
+        </ScrollView>
+      </Animated.View>
+
+      {/* FAB - Add Spot */}
       {isMember && (
         <TouchableOpacity
           style={styles.fab}
           onPress={() => router.push('/add-spot')}
+          activeOpacity={0.85}
         >
           <Text style={styles.fabIcon}>+</Text>
+        </TouchableOpacity>
+      )}
+
+      {/* Guest Login Prompt */}
+      {isGuest && (
+        <TouchableOpacity
+          style={styles.loginPrompt}
+          onPress={() => router.push('/login')}
+          activeOpacity={0.9}
+        >
+          <Text style={styles.loginPromptText}>
+            ログインして隠れスポットを発見 →
+          </Text>
         </TouchableOpacity>
       )}
     </View>
   );
 }
 
+// Minimal map style for cleaner look
+const mapStyle = [
+  { featureType: 'poi', stylers: [{ visibility: 'off' }] },
+  { featureType: 'transit', stylers: [{ visibility: 'simplified' }] },
+];
+
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff' },
-  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  container: {
+    flex: 1,
+    backgroundColor: COLORS.background,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
     alignItems: 'center',
-    padding: 12,
-    backgroundColor: '#f5f5f5',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
+    backgroundColor: COLORS.background,
   },
-  statusText: { fontSize: 14, fontWeight: '600', color: '#333' },
-  guestHint: { fontSize: 11, color: '#666', marginTop: 2 },
-  headerButtons: { flexDirection: 'row', alignItems: 'center' },
-  debugButton: {
-    backgroundColor: '#888',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
-    marginRight: 8,
+
+  // Map
+  mapContainer: {
+    ...StyleSheet.absoluteFillObject,
   },
-  debugButtonText: { color: '#fff', fontWeight: '600', fontSize: 12 },
-  profileButton: {
-    backgroundColor: '#f0f0f0',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 20,
-    marginRight: 8,
+  map: {
+    flex: 1,
   },
-  profileButtonText: { fontSize: 18 },
-  authButton: {
-    backgroundColor: '#4A90D9',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
+  mapLoading: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: COLORS.background,
   },
-  authButtonText: { color: '#fff', fontWeight: '600', fontSize: 13 },
-  // Search
-  searchContainer: {
+  webMapPlaceholder: {
+    flex: 1,
+    backgroundColor: '#E5E7EB',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  webMapText: {
+    fontSize: 24,
+    fontWeight: '600',
+    color: COLORS.textSecondary,
+  },
+  webMapSubtext: {
+    fontSize: 14,
+    color: COLORS.textMuted,
+    marginTop: 4,
+  },
+
+  // Markers
+  marker: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...SHADOWS.medium,
+  },
+  markerEmoji: {
+    fontSize: 20,
+  },
+
+  // Floating Header
+  floatingHeader: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 60 : 40,
+    left: 0,
+    right: 0,
+    paddingHorizontal: SPACING.md,
+  },
+  searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#f5f5f5',
-    marginHorizontal: 12,
-    marginTop: 10,
-    paddingHorizontal: 12,
-    borderRadius: 10,
+    backgroundColor: COLORS.glass,
+    borderRadius: RADIUS.xl,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: Platform.OS === 'ios' ? SPACING.sm + 4 : SPACING.sm,
+    ...SHADOWS.medium,
     borderWidth: 1,
-    borderColor: '#e0e0e0',
+    borderColor: COLORS.glassBorder,
   },
   searchIcon: {
     fontSize: 16,
-    marginRight: 8,
+    marginRight: SPACING.sm,
   },
   searchInput: {
     flex: 1,
-    paddingVertical: 10,
-    fontSize: 15,
-    color: '#333',
-  },
-  searchClear: {
     fontSize: 16,
-    color: '#999',
-    padding: 4,
+    color: COLORS.textPrimary,
+    paddingVertical: 0,
   },
-  filterContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    padding: 10,
-    backgroundColor: '#fff',
+  clearButton: {
+    padding: SPACING.xs,
   },
-  filterButton: {
+  clearText: {
+    fontSize: 14,
+    color: COLORS.textMuted,
+  },
+
+  // Filter Pills
+  filterScroll: {
+    paddingTop: SPACING.sm + 4,
+    paddingBottom: SPACING.xs,
+  },
+  filterPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    marginHorizontal: 4,
-    borderRadius: 20,
-    backgroundColor: '#f0f0f0',
+    backgroundColor: COLORS.glass,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    borderRadius: RADIUS.full,
+    marginRight: SPACING.sm,
+    ...SHADOWS.small,
+    borderWidth: 1,
+    borderColor: COLORS.glassBorder,
   },
-  filterActive: { backgroundColor: '#4A90D9' },
-  filterEmoji: { fontSize: 14, marginRight: 4 },
-  filterText: { fontSize: 12, color: '#666' },
-  filterTextActive: { color: '#fff' },
-  mapContainer: { flex: 1 },
-  map: { flex: 1 },
-  footer: {
+  filterPillActive: {
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
+  },
+  filterEmoji: {
+    fontSize: 14,
+    marginRight: SPACING.xs,
+  },
+  filterLabel: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: COLORS.textSecondary,
+  },
+  filterLabelActive: {
+    color: COLORS.textLight,
+  },
+
+  // Top Right Actions
+  topRightActions: {
     position: 'absolute',
-    bottom: 20,
+    top: Platform.OS === 'ios' ? 60 : 40,
+    right: SPACING.md,
+    flexDirection: 'column',
+    alignItems: 'center',
+  },
+  actionButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: COLORS.glass,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: SPACING.sm,
+    ...SHADOWS.small,
+    borderWidth: 1,
+    borderColor: COLORS.glassBorder,
+  },
+  actionButtonSmall: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+  },
+  actionIcon: {
+    fontSize: 20,
+  },
+  actionIconSmall: {
+    fontSize: 16,
+  },
+
+  // Bottom Sheet
+  bottomSheet: {
+    position: 'absolute',
+    bottom: 0,
     left: 0,
     right: 0,
+    backgroundColor: COLORS.surface,
+    borderTopLeftRadius: RADIUS.xl,
+    borderTopRightRadius: RADIUS.xl,
+    ...SHADOWS.large,
+  },
+  bottomSheetHandle: {
     alignItems: 'center',
+    paddingVertical: SPACING.md,
   },
-  spotCount: {
-    backgroundColor: 'rgba(0,0,0,0.7)',
-    color: '#fff',
-    paddingHorizontal: 16,
-    paddingVertical: 6,
-    borderRadius: 20,
-    fontSize: 12,
-    overflow: 'hidden',
+  handle: {
+    width: 40,
+    height: 4,
+    backgroundColor: '#D1D5DB',
+    borderRadius: 2,
+    marginBottom: SPACING.sm,
   },
-  // Web styles
-  webMapContainer: { flex: 1, backgroundColor: '#f0f0f0' },
-  webMapTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    padding: 16,
-    backgroundColor: '#4A90D9',
-    color: '#fff',
-  },
-  webMapSubtitle: {
+  bottomSheetTitle: {
     fontSize: 14,
-    padding: 10,
-    backgroundColor: '#4A90D9',
-    color: 'rgba(255,255,255,0.8)',
+    fontWeight: '600',
+    color: COLORS.textSecondary,
   },
-  spotList: { padding: 10 },
+
+  // Spot List
+  spotList: {
+    flex: 1,
+  },
+  spotListContent: {
+    paddingHorizontal: SPACING.md,
+    paddingBottom: SPACING.xxl,
+  },
+
+  // Spot Card
   spotCard: {
     flexDirection: 'row',
-    backgroundColor: '#fff',
-    padding: 16,
-    marginBottom: 10,
-    borderRadius: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
+    alignItems: 'center',
+    backgroundColor: COLORS.surface,
+    padding: SPACING.md,
+    borderRadius: RADIUS.lg,
+    marginBottom: SPACING.sm,
+    ...SHADOWS.small,
   },
-  spotEmoji: { fontSize: 32, marginRight: 12 },
-  spotInfo: { flex: 1 },
-  spotName: { fontSize: 16, fontWeight: 'bold', color: '#333' },
-  spotAddress: { fontSize: 14, color: '#666', marginTop: 4 },
-  spotBadge: { fontSize: 11, color: '#999', marginTop: 4 },
+  spotCardIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: RADIUS.md,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: SPACING.md,
+  },
+  spotCardEmoji: {
+    fontSize: 24,
+  },
+  spotCardContent: {
+    flex: 1,
+  },
+  spotCardName: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: COLORS.textPrimary,
+    marginBottom: 2,
+  },
+  spotCardAddress: {
+    fontSize: 13,
+    color: COLORS.textMuted,
+    marginBottom: SPACING.xs,
+  },
+  spotCardTags: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  tag: {
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: 2,
+    borderRadius: RADIUS.sm,
+    marginRight: SPACING.xs,
+  },
+  tagText: {
+    fontSize: 11,
+    fontWeight: '500',
+  },
+  tagUser: {
+    backgroundColor: '#F3E8FF',
+  },
+  tagTextUser: {
+    fontSize: 11,
+    fontWeight: '500',
+    color: '#7C3AED',
+  },
+  spotCardArrow: {
+    paddingLeft: SPACING.sm,
+  },
+  arrowText: {
+    fontSize: 24,
+    color: COLORS.textMuted,
+    fontWeight: '300',
+  },
+
+  // Empty State
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: SPACING.xxl,
+  },
+  emptyIcon: {
+    fontSize: 48,
+    marginBottom: SPACING.md,
+  },
+  emptyText: {
+    fontSize: 15,
+    color: COLORS.textMuted,
+  },
+
   // FAB
   fab: {
     position: 'absolute',
-    bottom: 80,
-    right: 20,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: '#4CAF50',
+    bottom: BOTTOM_SHEET_MIN + SPACING.md,
+    right: SPACING.md,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: COLORS.accent,
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 8,
+    ...SHADOWS.large,
   },
   fabIcon: {
     fontSize: 32,
-    color: '#fff',
+    color: COLORS.textLight,
     fontWeight: '300',
     marginTop: -2,
+  },
+
+  // Guest Login Prompt
+  loginPrompt: {
+    position: 'absolute',
+    bottom: BOTTOM_SHEET_MIN + SPACING.md,
+    left: SPACING.md,
+    right: 80,
+    backgroundColor: COLORS.primary,
+    paddingVertical: SPACING.sm + 2,
+    paddingHorizontal: SPACING.md,
+    borderRadius: RADIUS.full,
+    ...SHADOWS.medium,
+  },
+  loginPromptText: {
+    color: COLORS.textLight,
+    fontSize: 13,
+    fontWeight: '600',
+    textAlign: 'center',
   },
 });

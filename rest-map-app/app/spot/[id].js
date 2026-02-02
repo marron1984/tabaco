@@ -10,11 +10,17 @@ import {
   Alert,
   Linking,
   Platform,
+  Dimensions,
+  StatusBar,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useAuth } from '../../contexts/AuthContext';
 import { doc, getDoc, collection, getDocs, addDoc, Timestamp } from 'firebase/firestore';
 import { db } from '../../firebaseConfig';
+import { COLORS, SHADOWS, SPACING, RADIUS, SPOT_COLORS } from '../../constants/theme';
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const HEADER_HEIGHT = 280;
 
 // Demo data (Osaka area)
 const DEMO_SPOTS = {
@@ -29,6 +35,41 @@ const DEMO_REVIEWS = [
   { id: 'r2', userName: 'traveler_jp', rating: 5, comment: '梅田で一番見つけやすい喫煙所。', spotId: '1' },
   { id: 'r3', userName: 'cafe_lover', rating: 5, comment: 'コーヒーも雰囲気も最高です。', spotId: '4' },
 ];
+
+// Tag Component
+function Tag({ label, color, textColor }) {
+  return (
+    <View style={[styles.tag, { backgroundColor: color }]}>
+      <Text style={[styles.tagText, { color: textColor }]}>{label}</Text>
+    </View>
+  );
+}
+
+// Review Card Component
+function ReviewCard({ review }) {
+  return (
+    <View style={styles.reviewCard}>
+      <View style={styles.reviewHeader}>
+        <View style={styles.reviewerAvatar}>
+          <Text style={styles.reviewerInitial}>
+            {review.userName?.charAt(0).toUpperCase() || 'U'}
+          </Text>
+        </View>
+        <View style={styles.reviewerInfo}>
+          <Text style={styles.reviewerName}>{review.userName}</Text>
+          <View style={styles.ratingRow}>
+            {[1, 2, 3, 4, 5].map(star => (
+              <Text key={star} style={styles.starSmall}>
+                {star <= review.rating ? '★' : '☆'}
+              </Text>
+            ))}
+          </View>
+        </View>
+      </View>
+      <Text style={styles.reviewComment}>{review.comment}</Text>
+    </View>
+  );
+}
 
 export default function SpotDetailScreen() {
   const { id, isPublic } = useLocalSearchParams();
@@ -50,7 +91,6 @@ export default function SpotDetailScreen() {
   const fetchSpotData = async () => {
     setLoading(true);
     try {
-      // Try Firestore
       const collectionName = isPublic === 'true' ? 'publicSpots' : 'userSpots';
       const docRef = doc(db, collectionName, id);
       const docSnap = await getDoc(docRef);
@@ -58,11 +98,9 @@ export default function SpotDetailScreen() {
       if (docSnap.exists()) {
         setSpot({ id: docSnap.id, ...docSnap.data() });
       } else {
-        // Use demo data
-        setSpot(DEMO_SPOTS[id] || { id, name: 'Unknown Spot', type: 'unknown', address: 'Unknown', description: 'No details available.' });
+        setSpot(DEMO_SPOTS[id] || { id, name: 'Unknown Spot', type: 'unknown', address: 'Unknown', description: '' });
       }
 
-      // Fetch reviews for members
       if (isMember) {
         try {
           const reviewsRef = collection(db, 'reviews');
@@ -77,7 +115,7 @@ export default function SpotDetailScreen() {
       }
     } catch (error) {
       console.error('Error fetching spot:', error);
-      setSpot(DEMO_SPOTS[id] || { id, name: 'Unknown Spot', type: 'unknown', address: 'Unknown', description: 'No details available.' });
+      setSpot(DEMO_SPOTS[id] || { id, name: 'Unknown Spot', type: 'unknown', address: 'Unknown', description: '' });
       if (isMember) {
         setReviews(DEMO_REVIEWS.filter(r => r.spotId === id));
       }
@@ -111,7 +149,6 @@ export default function SpotDetailScreen() {
       setShowReviewForm(false);
       Alert.alert('完了', 'レビューを投稿しました！');
     } catch (error) {
-      // Demo mode: just add locally
       const review = {
         id: Date.now().toString(),
         userName: user?.email?.split('@')[0] || 'You',
@@ -123,15 +160,6 @@ export default function SpotDetailScreen() {
       setShowReviewForm(false);
     } finally {
       setSubmitting(false);
-    }
-  };
-
-  const getEmoji = (type) => {
-    switch (type) {
-      case 'smoking': return '🚬';
-      case 'toilet': return '🚻';
-      case 'cafe': return '☕';
-      default: return '📍';
     }
   };
 
@@ -151,14 +179,16 @@ export default function SpotDetailScreen() {
     } else if (Platform.OS === 'android') {
       url = `geo:${lat},${lng}?q=${lat},${lng}(${label})`;
     } else {
-      // Web - use Google Maps
       url = `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
     }
 
     Linking.openURL(url).catch(() => {
-      // Fallback to Google Maps URL
       Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${lat},${lng}`);
     });
+  };
+
+  const getSpotTypeInfo = (type) => {
+    return SPOT_COLORS[type] || { bg: '#F3F4F6', text: '#374151', emoji: '📍' };
   };
 
   const renderStars = (rating, interactive = false) => (
@@ -168,8 +198,11 @@ export default function SpotDetailScreen() {
           key={star}
           disabled={!interactive}
           onPress={() => interactive && setNewRating(star)}
+          style={styles.starButton}
         >
-          <Text style={styles.star}>{star <= rating ? '★' : '☆'}</Text>
+          <Text style={[styles.star, star <= rating && styles.starFilled]}>
+            {star <= rating ? '★' : '☆'}
+          </Text>
         </TouchableOpacity>
       ))}
     </View>
@@ -178,7 +211,7 @@ export default function SpotDetailScreen() {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#4A90D9" />
+        <ActivityIndicator size="large" color={COLORS.primary} />
       </View>
     );
   }
@@ -186,6 +219,7 @@ export default function SpotDetailScreen() {
   if (!spot) {
     return (
       <View style={styles.errorContainer}>
+        <Text style={styles.errorIcon}>😢</Text>
         <Text style={styles.errorText}>スポットが見つかりません</Text>
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
           <Text style={styles.backButtonText}>戻る</Text>
@@ -194,217 +228,553 @@ export default function SpotDetailScreen() {
     );
   }
 
+  const typeInfo = getSpotTypeInfo(spot.type);
+
   return (
-    <ScrollView style={styles.container}>
-      {/* Spot Header */}
-      <View style={styles.header}>
-        <Text style={styles.emoji}>{getEmoji(spot.type)}</Text>
-        <Text style={styles.name}>{spot.name}</Text>
-        <View style={styles.badges}>
-          <View style={[styles.badge, spot.isPublic ? styles.badgeOfficial : styles.badgeUser]}>
-            <Text style={styles.badgeText}>
-              {spot.isPublic ? 'Official' : 'User Submitted'}
-            </Text>
-          </View>
-          <View style={styles.badge}>
-            <Text style={styles.badgeText}>{spot.type}</Text>
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" />
+
+      {/* Immersive Header */}
+      <View style={[styles.header, { backgroundColor: typeInfo.bg }]}>
+        <View style={styles.headerContent}>
+          <Text style={styles.headerEmoji}>{typeInfo.emoji}</Text>
+          <Text style={styles.headerTitle}>{spot.name}</Text>
+          <View style={styles.headerBadges}>
+            <Tag
+              label={spot.type === 'smoking' ? '喫煙所' : spot.type === 'toilet' ? 'トイレ' : 'カフェ'}
+              color="rgba(255,255,255,0.9)"
+              textColor={typeInfo.text}
+            />
+            <Tag
+              label={spot.isPublic ? '公式' : 'ユーザー投稿'}
+              color={spot.isPublic ? COLORS.success : '#F97316'}
+              textColor={COLORS.textLight}
+            />
           </View>
         </View>
+
+        {/* Back Button */}
+        <TouchableOpacity style={styles.headerBackButton} onPress={() => router.back()}>
+          <Text style={styles.headerBackIcon}>←</Text>
+        </TouchableOpacity>
       </View>
 
-      {/* Location Details */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>場所</Text>
-        <Text style={styles.text}>{spot.address}</Text>
-        {spot.lat && spot.lng && (
-          <TouchableOpacity style={styles.mapButton} onPress={openInMaps}>
-            <Text style={styles.mapButtonIcon}>🗺️</Text>
-            <Text style={styles.mapButtonText}>マップで開く</Text>
-          </TouchableOpacity>
-        )}
-      </View>
-
-      {spot.description && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>説明</Text>
-          <Text style={styles.text}>{spot.description}</Text>
-        </View>
-      )}
-
-      {/* Reviews Section */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>レビュー</Text>
-
-        {isGuest ? (
-          <View style={styles.loginPrompt}>
-            <Text style={styles.loginPromptText}>ログインするとレビューの閲覧・投稿ができます</Text>
-            <TouchableOpacity
-              style={styles.loginButton}
-              onPress={() => router.push('/login')}
-            >
-              <Text style={styles.loginButtonText}>ログイン</Text>
-            </TouchableOpacity>
-          </View>
-        ) : (
-          <>
-            {/* Write Review Button */}
-            {!showReviewForm && (
-              <TouchableOpacity
-                style={styles.writeReviewButton}
-                onPress={() => setShowReviewForm(true)}
-              >
-                <Text style={styles.writeReviewText}>レビューを書く</Text>
+      {/* Content Card */}
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.contentCard}>
+          {/* Location Section */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>場所</Text>
+            <View style={styles.locationRow}>
+              <View style={styles.locationIcon}>
+                <Text style={styles.locationEmoji}>📍</Text>
+              </View>
+              <Text style={styles.locationText}>{spot.address}</Text>
+            </View>
+            {spot.lat && spot.lng && (
+              <TouchableOpacity style={styles.mapButton} onPress={openInMaps} activeOpacity={0.8}>
+                <Text style={styles.mapButtonIcon}>🗺️</Text>
+                <Text style={styles.mapButtonText}>マップで開く</Text>
               </TouchableOpacity>
             )}
+          </View>
 
-            {/* Review Form */}
-            {showReviewForm && (
-              <View style={styles.reviewForm}>
-                <Text style={styles.formLabel}>評価</Text>
-                {renderStars(newRating, true)}
+          {/* Description Section */}
+          {spot.description && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>説明</Text>
+              <Text style={styles.descriptionText}>{spot.description}</Text>
+            </View>
+          )}
 
-                <Text style={styles.formLabel}>コメント</Text>
-                <TextInput
-                  style={styles.textArea}
-                  multiline
-                  numberOfLines={4}
-                  placeholder="感想を共有してください..."
-                  value={newComment}
-                  onChangeText={setNewComment}
-                  editable={!submitting}
-                />
-
-                <View style={styles.formButtons}>
-                  <TouchableOpacity
-                    style={styles.cancelButton}
-                    onPress={() => setShowReviewForm(false)}
-                  >
-                    <Text style={styles.cancelText}>キャンセル</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.submitButton, submitting && styles.disabled]}
-                    onPress={handleSubmitReview}
-                    disabled={submitting}
-                  >
-                    {submitting ? (
-                      <ActivityIndicator color="#fff" size="small" />
-                    ) : (
-                      <Text style={styles.submitText}>投稿</Text>
-                    )}
-                  </TouchableOpacity>
+          {/* Reviews Section */}
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>レビュー</Text>
+              {isMember && reviews.length > 0 && (
+                <View style={styles.avgRating}>
+                  <Text style={styles.avgRatingStar}>★</Text>
+                  <Text style={styles.avgRatingText}>
+                    {(reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length).toFixed(1)}
+                  </Text>
                 </View>
+              )}
+            </View>
+
+            {isGuest ? (
+              <View style={styles.guestPrompt}>
+                <Text style={styles.guestIcon}>🔐</Text>
+                <Text style={styles.guestText}>
+                  ログインするとレビューの閲覧・投稿ができます
+                </Text>
+                <TouchableOpacity
+                  style={styles.guestButton}
+                  onPress={() => router.push('/login')}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.guestButtonText}>ログイン</Text>
+                </TouchableOpacity>
               </View>
-            )}
-
-            {/* Reviews List */}
-            {reviews.length === 0 ? (
-              <Text style={styles.noReviews}>まだレビューがありません。最初のレビューを書きましょう！</Text>
             ) : (
-              reviews.map(review => (
-                <View key={review.id} style={styles.reviewCard}>
-                  <View style={styles.reviewHeader}>
-                    <Text style={styles.reviewerName}>{review.userName}</Text>
-                    {renderStars(review.rating)}
-                  </View>
-                  <Text style={styles.reviewComment}>{review.comment}</Text>
-                </View>
-              ))
-            )}
-          </>
-        )}
-      </View>
+              <>
+                {/* Write Review Button */}
+                {!showReviewForm && (
+                  <TouchableOpacity
+                    style={styles.writeReviewButton}
+                    onPress={() => setShowReviewForm(true)}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.writeReviewIcon}>✍️</Text>
+                    <Text style={styles.writeReviewText}>レビューを書く</Text>
+                  </TouchableOpacity>
+                )}
 
-      <View style={styles.bottomPadding} />
-    </ScrollView>
+                {/* Review Form */}
+                {showReviewForm && (
+                  <View style={styles.reviewForm}>
+                    <Text style={styles.formLabel}>評価</Text>
+                    {renderStars(newRating, true)}
+
+                    <Text style={styles.formLabel}>コメント</Text>
+                    <TextInput
+                      style={styles.textArea}
+                      multiline
+                      numberOfLines={4}
+                      placeholder="感想を共有してください..."
+                      placeholderTextColor={COLORS.textMuted}
+                      value={newComment}
+                      onChangeText={setNewComment}
+                      editable={!submitting}
+                    />
+
+                    <View style={styles.formButtons}>
+                      <TouchableOpacity
+                        style={styles.cancelButton}
+                        onPress={() => setShowReviewForm(false)}
+                      >
+                        <Text style={styles.cancelText}>キャンセル</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.submitButton, submitting && styles.disabled]}
+                        onPress={handleSubmitReview}
+                        disabled={submitting}
+                        activeOpacity={0.8}
+                      >
+                        {submitting ? (
+                          <ActivityIndicator color={COLORS.textLight} size="small" />
+                        ) : (
+                          <Text style={styles.submitText}>投稿する</Text>
+                        )}
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                )}
+
+                {/* Reviews List */}
+                {reviews.length === 0 ? (
+                  <View style={styles.emptyReviews}>
+                    <Text style={styles.emptyIcon}>💬</Text>
+                    <Text style={styles.emptyText}>
+                      まだレビューがありません{'\n'}最初のレビューを書きましょう！
+                    </Text>
+                  </View>
+                ) : (
+                  reviews.map(review => (
+                    <ReviewCard key={review.id} review={review} />
+                  ))
+                )}
+              </>
+            )}
+          </View>
+        </View>
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff' },
-  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  errorContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },
-  errorText: { fontSize: 18, color: '#666', marginBottom: 20 },
-  backButton: { backgroundColor: '#4A90D9', paddingHorizontal: 20, paddingVertical: 10, borderRadius: 8 },
-  backButtonText: { color: '#fff', fontWeight: '600' },
-  header: {
-    alignItems: 'center',
-    padding: 24,
-    backgroundColor: '#f8f8f8',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
+  container: {
+    flex: 1,
+    backgroundColor: COLORS.background,
   },
-  emoji: { fontSize: 48, marginBottom: 12 },
-  name: { fontSize: 22, fontWeight: 'bold', color: '#333', textAlign: 'center' },
-  badges: { flexDirection: 'row', marginTop: 12 },
-  badge: { backgroundColor: '#e0e0e0', paddingHorizontal: 12, paddingVertical: 4, borderRadius: 12, marginHorizontal: 4 },
-  badgeOfficial: { backgroundColor: '#4CAF50' },
-  badgeUser: { backgroundColor: '#FF9800' },
-  badgeText: { fontSize: 12, color: '#fff', fontWeight: '500' },
-  section: { padding: 20, borderBottomWidth: 1, borderBottomColor: '#f0f0f0' },
-  sectionTitle: { fontSize: 16, fontWeight: '600', color: '#333', marginBottom: 8 },
-  text: { fontSize: 15, color: '#666', lineHeight: 22 },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: COLORS.background,
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: SPACING.xl,
+    backgroundColor: COLORS.background,
+  },
+  errorIcon: {
+    fontSize: 64,
+    marginBottom: SPACING.md,
+  },
+  errorText: {
+    fontSize: 18,
+    color: COLORS.textSecondary,
+    marginBottom: SPACING.lg,
+  },
+  backButton: {
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: SPACING.xl,
+    paddingVertical: SPACING.sm + 2,
+    borderRadius: RADIUS.full,
+  },
+  backButtonText: {
+    color: COLORS.textLight,
+    fontWeight: '600',
+    fontSize: 15,
+  },
+
+  // Immersive Header
+  header: {
+    height: HEADER_HEIGHT,
+    justifyContent: 'flex-end',
+    paddingBottom: SPACING.xxl,
+    paddingHorizontal: SPACING.lg,
+  },
+  headerContent: {
+    alignItems: 'center',
+  },
+  headerEmoji: {
+    fontSize: 56,
+    marginBottom: SPACING.sm,
+  },
+  headerTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: COLORS.textPrimary,
+    textAlign: 'center',
+    marginBottom: SPACING.sm,
+    letterSpacing: -0.3,
+  },
+  headerBadges: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: SPACING.sm,
+  },
+  headerBackButton: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 60 : 40,
+    left: SPACING.md,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: COLORS.glass,
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...SHADOWS.small,
+  },
+  headerBackIcon: {
+    fontSize: 20,
+    color: COLORS.textPrimary,
+  },
+
+  // Content Card
+  scrollView: {
+    flex: 1,
+    marginTop: -SPACING.xl,
+  },
+  scrollContent: {
+    paddingBottom: SPACING.xxl,
+  },
+  contentCard: {
+    backgroundColor: COLORS.surface,
+    borderTopLeftRadius: RADIUS.xl,
+    borderTopRightRadius: RADIUS.xl,
+    minHeight: 500,
+    ...SHADOWS.medium,
+  },
+
+  // Tags
+  tag: {
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.xs + 2,
+    borderRadius: RADIUS.full,
+  },
+  tagText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+
+  // Sections
+  section: {
+    padding: SPACING.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  sectionTitle: {
+    fontSize: 17,
+    fontWeight: '600',
+    color: COLORS.textPrimary,
+    marginBottom: SPACING.md,
+  },
+  avgRating: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: SPACING.xs,
+    borderRadius: RADIUS.sm,
+  },
+  avgRatingStar: {
+    fontSize: 14,
+    color: '#F59E0B',
+    marginRight: 2,
+  },
+  avgRatingText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#D97706',
+  },
+
+  // Location
+  locationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: SPACING.md,
+  },
+  locationIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: RADIUS.md,
+    backgroundColor: COLORS.background,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: SPACING.sm,
+  },
+  locationEmoji: {
+    fontSize: 18,
+  },
+  locationText: {
+    flex: 1,
+    fontSize: 15,
+    color: COLORS.textSecondary,
+    lineHeight: 22,
+  },
   mapButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#4A90D9',
-    padding: 12,
-    borderRadius: 8,
-    marginTop: 12,
     justifyContent: 'center',
+    backgroundColor: COLORS.primary,
+    padding: SPACING.md,
+    borderRadius: RADIUS.lg,
+    ...SHADOWS.small,
   },
-  mapButtonIcon: { fontSize: 18, marginRight: 8 },
-  mapButtonText: { color: '#fff', fontWeight: '600', fontSize: 15 },
-  loginPrompt: {
+  mapButtonIcon: {
+    fontSize: 18,
+    marginRight: SPACING.sm,
+  },
+  mapButtonText: {
+    color: COLORS.textLight,
+    fontWeight: '600',
+    fontSize: 15,
+  },
+
+  // Description
+  descriptionText: {
+    fontSize: 15,
+    color: COLORS.textSecondary,
+    lineHeight: 24,
+  },
+
+  // Guest Prompt
+  guestPrompt: {
     alignItems: 'center',
-    padding: 20,
-    backgroundColor: '#f8f8f8',
-    borderRadius: 12,
+    padding: SPACING.xl,
+    backgroundColor: COLORS.background,
+    borderRadius: RADIUS.lg,
   },
-  loginPromptText: { fontSize: 14, color: '#666', marginBottom: 12 },
-  loginButton: { backgroundColor: '#4A90D9', paddingHorizontal: 24, paddingVertical: 10, borderRadius: 20 },
-  loginButtonText: { color: '#fff', fontWeight: '600' },
-  writeReviewButton: {
-    backgroundColor: '#4A90D9',
-    padding: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginBottom: 16,
+  guestIcon: {
+    fontSize: 40,
+    marginBottom: SPACING.md,
   },
-  writeReviewText: { color: '#fff', fontWeight: '600' },
-  reviewForm: {
-    backgroundColor: '#f8f8f8',
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 16,
-  },
-  formLabel: { fontSize: 14, fontWeight: '500', color: '#333', marginBottom: 8, marginTop: 12 },
-  starsContainer: { flexDirection: 'row' },
-  star: { fontSize: 28, color: '#FFD700', marginRight: 4 },
-  textArea: {
-    backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    padding: 12,
-    minHeight: 80,
-    textAlignVertical: 'top',
+  guestText: {
     fontSize: 14,
+    color: COLORS.textSecondary,
+    textAlign: 'center',
+    marginBottom: SPACING.md,
+    lineHeight: 20,
   },
-  formButtons: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: 16 },
-  cancelButton: { paddingHorizontal: 20, paddingVertical: 10, marginRight: 12 },
-  cancelText: { color: '#666', fontWeight: '500' },
-  submitButton: { backgroundColor: '#4A90D9', paddingHorizontal: 20, paddingVertical: 10, borderRadius: 8 },
-  disabled: { opacity: 0.6 },
-  submitText: { color: '#fff', fontWeight: '600' },
-  noReviews: { textAlign: 'center', color: '#999', fontStyle: 'italic', padding: 20 },
+  guestButton: {
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: SPACING.xl,
+    paddingVertical: SPACING.sm + 2,
+    borderRadius: RADIUS.full,
+  },
+  guestButtonText: {
+    color: COLORS.textLight,
+    fontWeight: '600',
+    fontSize: 15,
+  },
+
+  // Write Review
+  writeReviewButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.background,
+    padding: SPACING.md,
+    borderRadius: RADIUS.lg,
+    marginBottom: SPACING.md,
+    borderWidth: 2,
+    borderColor: COLORS.primary,
+    borderStyle: 'dashed',
+  },
+  writeReviewIcon: {
+    fontSize: 18,
+    marginRight: SPACING.sm,
+  },
+  writeReviewText: {
+    color: COLORS.primary,
+    fontWeight: '600',
+    fontSize: 15,
+  },
+
+  // Review Form
+  reviewForm: {
+    backgroundColor: COLORS.background,
+    padding: SPACING.md,
+    borderRadius: RADIUS.lg,
+    marginBottom: SPACING.md,
+  },
+  formLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.textPrimary,
+    marginBottom: SPACING.sm,
+    marginTop: SPACING.sm,
+  },
+  starsContainer: {
+    flexDirection: 'row',
+    marginBottom: SPACING.sm,
+  },
+  starButton: {
+    paddingRight: SPACING.xs,
+  },
+  star: {
+    fontSize: 32,
+    color: '#D1D5DB',
+  },
+  starFilled: {
+    color: '#F59E0B',
+  },
+  textArea: {
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: RADIUS.md,
+    padding: SPACING.md,
+    minHeight: 100,
+    textAlignVertical: 'top',
+    fontSize: 15,
+    color: COLORS.textPrimary,
+  },
+  formButtons: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginTop: SPACING.md,
+    gap: SPACING.sm,
+  },
+  cancelButton: {
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.sm + 2,
+  },
+  cancelText: {
+    color: COLORS.textMuted,
+    fontWeight: '500',
+    fontSize: 15,
+  },
+  submitButton: {
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.sm + 2,
+    borderRadius: RADIUS.md,
+  },
+  disabled: {
+    opacity: 0.6,
+  },
+  submitText: {
+    color: COLORS.textLight,
+    fontWeight: '600',
+    fontSize: 15,
+  },
+
+  // Empty Reviews
+  emptyReviews: {
+    alignItems: 'center',
+    padding: SPACING.xl,
+  },
+  emptyIcon: {
+    fontSize: 48,
+    marginBottom: SPACING.md,
+  },
+  emptyText: {
+    fontSize: 14,
+    color: COLORS.textMuted,
+    textAlign: 'center',
+    lineHeight: 22,
+  },
+
+  // Review Card
   reviewCard: {
-    backgroundColor: '#f8f8f8',
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 12,
+    backgroundColor: COLORS.background,
+    padding: SPACING.md,
+    borderRadius: RADIUS.lg,
+    marginBottom: SPACING.sm,
   },
-  reviewHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-  reviewerName: { fontSize: 14, fontWeight: '600', color: '#333' },
-  reviewComment: { fontSize: 14, color: '#666', lineHeight: 20 },
-  bottomPadding: { height: 40 },
+  reviewHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: SPACING.sm,
+  },
+  reviewerAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: COLORS.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: SPACING.sm,
+  },
+  reviewerInitial: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: COLORS.textLight,
+  },
+  reviewerInfo: {
+    flex: 1,
+  },
+  reviewerName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.textPrimary,
+    marginBottom: 2,
+  },
+  ratingRow: {
+    flexDirection: 'row',
+  },
+  starSmall: {
+    fontSize: 12,
+    color: '#F59E0B',
+  },
+  reviewComment: {
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    lineHeight: 21,
+  },
 });
