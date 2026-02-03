@@ -2,11 +2,14 @@
   "name": "rest-map-app",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": "20.x"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint",
+    "lint": "next lint",
     "import:osaka": "tsx scripts/geocode_and_import_osaka_csv.ts",
     "import:osaka:dry": "tsx scripts/geocode_and_import_osaka_csv.ts --dry-run"
   },
