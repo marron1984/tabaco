@@ -96,17 +96,45 @@ export default function RulesPage() {
         {/* Open Data */}
         <section className="bg-blue-50 rounded-xl p-4">
           <h2 className="text-lg font-bold text-blue-900 mb-3">
-            📊 オープンデータについて
+            📊 データソース・出典
           </h2>
           <div className="text-blue-800 space-y-3 text-sm">
             <p>
-              本サービスでは、以下のオープンデータを利用しています：
+              本サービスでは、以下の公開情報を初期データとして利用しています：
             </p>
-            <ul className="list-disc list-inside space-y-1 ml-2">
-              <li>大阪府 公衆トイレ一覧（Creative Commons Attribution 4.0）</li>
-            </ul>
+            <div className="bg-white/50 rounded-lg p-3 space-y-2">
+              <p className="font-medium">大阪市 公衆トイレ情報</p>
+              <ul className="list-disc list-inside space-y-1 ml-2 text-xs">
+                <li>
+                  出典: 大阪市 MapNavi（大阪市地図情報）
+                </li>
+                <li>
+                  URL:{' '}
+                  <a
+                    href="https://www.mapnavi.city.osaka.lg.jp/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-600 underline break-all"
+                  >
+                    https://www.mapnavi.city.osaka.lg.jp/
+                  </a>
+                </li>
+                <li>
+                  環境局所管トイレ一覧（PDF）を参考に位置情報を登録
+                </li>
+              </ul>
+            </div>
+            <div className="bg-yellow-50 rounded-lg p-3 mt-3">
+              <p className="text-yellow-800 text-xs">
+                <strong>⚠️ 注意:</strong>{' '}
+                自動登録された初期データは、ジオコーディング（住所から緯度経度への変換）を
+                使用しているため、実際の位置と若干のずれがある場合があります。
+                正確な位置は現地でご確認ください。
+              </p>
+            </div>
             <p className="text-xs text-blue-600 mt-2">
-              ※ オープンデータに基づく情報についても、実際の状況と異なる場合があります。
+              ※ 公開情報に基づく初期データについても、情報の正確性・最新性は保証しません。
+              施設の廃止・移転・ルール変更等により、実際と異なる場合があります。
             </p>
           </div>
         </section>

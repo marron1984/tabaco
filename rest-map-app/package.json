@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "import:osaka": "tsx scripts/geocode_and_import_osaka_csv.ts",
+    "import:osaka:dry": "tsx scripts/geocode_and_import_osaka_csv.ts --dry-run"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.93.3",
@@ -26,6 +28,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
     "tailwindcss": "^4",
+    "tsx": "^4.21.0",
     "typescript": "^5"
   }
 }
